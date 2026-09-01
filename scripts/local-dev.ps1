@@ -155,9 +155,18 @@ function Start-LoggedProcess(
 
     $stdout = Join-Path $logDir "$Name.out.log"
     $stderr = Join-Path $logDir "$Name.err.log"
-    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
-        -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $startParameters = @{
+        FilePath               = $Executable
+        WorkingDirectory       = $WorkingDirectory
+        WindowStyle            = 'Hidden'
+        PassThru               = $true
+        RedirectStandardOutput = $stdout
+        RedirectStandardError  = $stderr
+    }
+    if ($null -ne $Arguments -and $Arguments.Count -gt 0) {
+        $startParameters.ArgumentList = $Arguments
+    }
+    $process = Start-Process @startParameters
     $Table[$Name] = $process.Id
     Write-Host "Started $Name (PID $($process.Id)); logs: $stdout"
 }
@@ -175,7 +184,9 @@ function Start-Services {
 
     $nodeExe = Join-Path $nodeDir 'node.exe'
     $viteCli = Join-Path $projectRoot 'frontend\node_modules\vite\bin\vite.js'
-    Start-LoggedProcess 'frontend' $nodeExe @($viteCli, '--host', '127.0.0.1', '--port', '5173') (Join-Path $projectRoot 'frontend') $table
+    # Use a dedicated fresh origin and force a clean Vite dependency graph.
+    # This avoids Edge reusing stale dev-module state from the old :5173 origin.
+    Start-LoggedProcess 'frontend' $nodeExe @($viteCli, '--host', '127.0.0.1', '--port', '5174', '--force') (Join-Path $projectRoot 'frontend') $table
 
     if (-not $NoDocReader) {
         $pythonExe = Join-Path $pythonDir 'python.exe'
@@ -213,7 +224,7 @@ function Show-Status {
             Write-Host ("{0,-10} stopped" -f $name) -ForegroundColor Yellow
         }
     }
-    Write-Host 'Frontend: http://127.0.0.1:5173'
+    Write-Host 'Frontend: http://127.0.0.1:5174'
     Write-Host 'Backend:  http://127.0.0.1:8080/health'
 }
 
