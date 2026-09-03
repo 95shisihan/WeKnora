@@ -266,6 +266,17 @@
             <p v-if="isSignedRerank" class="form-desc">{{ signedRerankCredentialHint }}</p>
           </div>
 
+          <div v-for="field in selectedProviderExtraFields" :key="field.key" class="form-item">
+            <label class="form-label" :class="{ required: field.required }">{{ field.label || field.key }}</label>
+            <t-select v-if="field.type === 'select' || field.type === 'boolean'"
+              v-model="formData.extraConfig[field.key]" :placeholder="field.placeholder">
+              <t-option v-for="option in fieldOptions(field)" :key="option.value"
+                :value="option.value" :label="option.label" />
+            </t-select>
+            <t-input v-else v-model="formData.extraConfig[field.key]"
+              :type="field.type === 'number' ? 'number' : 'text'" :placeholder="field.placeholder" />
+          </div>
+
           <!-- AK/SK Rerank 创建模式：SecretKey（编辑模式由 CredentialResource 管理） -->
           <div v-if="isSignedRerank && !isEdit" class="form-item">
             <label class="form-label required">{{ signedRerankSecretKeyLabel }}</label>
@@ -447,6 +458,8 @@ interface ModelFormData {
   appSecret?: string
   /** LKEAP Rerank：地域，如 ap-guangzhou */
   lkeapRegion?: string
+  /** Manifest/provider-defined fields persisted in parameters.extra_config. */
+  extraConfig: Record<string, string>
 }
 
 type EditorModelType = 'chat' | 'embedding' | 'rerank' | 'vllm' | 'asr'
@@ -491,7 +504,7 @@ const apiProviderOptions = ref<ModelProviderOption[]>([])
 const loadingProviders = ref(false)
 
 // 硬编码的后备 Provider 配置 (当 API 不可用时使用)
-const fallbackProviderOptions = computed(() => [
+const fallbackProviderOptions = computed<ModelProviderOption[]>(() => [
   {
     value: 'openai',
     label: t('model.editor.providers.openai.label'),
@@ -640,7 +653,7 @@ const loadProviders = async () => {
 
 // 根据当前模型类型过滤的 Provider 列表
 // API 返回的 defaultUrls/modelTypes 数据优先，但 label/description 使用 i18n
-const providerOptions = computed(() => {
+const providerOptions = computed<ModelProviderOption[]>(() => {
   // API 数据可用时，用 API 的结构数据 + i18n 的显示文本
   if (apiProviderOptions.value.length > 0) {
     return apiProviderOptions.value.map(p => ({
@@ -658,6 +671,17 @@ const providerOptions = computed(() => {
     p.modelTypes.includes(activeModelType.value)
   )
 })
+
+const selectedProviderExtraFields = computed(() =>
+  providerOptions.value.find(option => option.value === formData.value.provider)?.extraFields || [],
+)
+
+const fieldOptions = (field: NonNullable<ModelProviderOption['extraFields']>[number]) => {
+  if (field.type === 'boolean') {
+    return [{ label: 'True', value: 'true' }, { label: 'False', value: 'false' }]
+  }
+  return field.options || []
+}
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -879,6 +903,7 @@ const formData = ref<ModelFormData>({
   customHeaders: [],
   appSecret: '',
   lkeapRegion: 'ap-guangzhou',
+  extraConfig: {},
 })
 
 const rules = computed(() => ({
@@ -1066,6 +1091,7 @@ watch(() => props.visible, (val) => {
           customHeaders: Array.isArray(props.modelData.customHeaders)
             ? props.modelData.customHeaders.map(h => ({ key: h.key, value: h.value }))
             : [],
+          extraConfig: { ...(props.modelData.extraConfig || {}) },
         }
         applyThinkingControlFromModelData()
       } else if (lastOpenedModelId.value !== null || !formData.value.id) {
@@ -1120,6 +1146,7 @@ const resetForm = () => {
     customHeaders: [],
     appSecret: '',
     lkeapRegion: 'ap-guangzhou',
+    extraConfig: {},
   }
   modelChecked.value = false
   modelAvailable.value = false
@@ -1136,6 +1163,12 @@ const resetForm = () => {
 const handleProviderChange = (value: string) => {
   const provider = providerOptions.value.find(opt => opt.value === value)
   if (provider && provider.defaultUrls) {
+    formData.value.extraConfig = {}
+    for (const field of provider.extraFields || []) {
+      if (field.default !== undefined && field.default !== '') {
+        formData.value.extraConfig[field.key] = field.default
+      }
+    }
     // 根据当前模型类型获取对应的默认 URL
     const defaultUrl = provider.defaultUrls[activeModelType.value]
     if (defaultUrl) {
@@ -1519,6 +1552,13 @@ const handleConfirm = async () => {
         new URL(formData.value.baseUrl.trim())
       } catch {
         MessagePlugin.warning(t('model.editor.validation.baseUrlInvalid'))
+        return
+      }
+    }
+
+    for (const field of selectedProviderExtraFields.value) {
+      if (field.required && !String(formData.value.extraConfig[field.key] || '').trim()) {
+        MessagePlugin.warning(`${field.label || field.key} is required`)
         return
       }
     }

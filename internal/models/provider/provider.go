@@ -3,6 +3,7 @@ package provider
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -156,6 +157,7 @@ type Provider interface {
 var (
 	registryMu sync.RWMutex
 	registry   = make(map[ProviderName]Provider)
+	external   = make(map[ProviderName]struct{})
 )
 
 // Register 添加一个提供者到全局注册表
@@ -165,10 +167,96 @@ func Register(p Provider) {
 	registry[p.Info().Name] = p
 }
 
+// RegisterBuiltin republishes a lifecycle-managed in-process provider without
+// classifying it as an external plugin.
+func RegisterBuiltin(p Provider) error {
+	if p == nil || p.Info().Name == "" {
+		return fmt.Errorf("model provider name is required")
+	}
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	name := p.Info().Name
+	if _, exists := registry[name]; exists {
+		return fmt.Errorf("model provider %q already registered", name)
+	}
+	registry[name] = p
+	return nil
+}
+
+// UnregisterBuiltin withdraws an in-process provider while retaining the
+// provider object in the plugin manager for a later enable operation.
+func UnregisterBuiltin(name ProviderName) error {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	if _, isExternal := external[name]; isExternal {
+		return fmt.Errorf("model provider %q is external", name)
+	}
+	if _, exists := registry[name]; !exists {
+		return fmt.Errorf("builtin model provider %q is not registered", name)
+	}
+	delete(registry, name)
+	return nil
+}
+
+// BuiltinProviders returns the currently registered in-process providers in
+// stable catalog order.
+func BuiltinProviders() []Provider {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	providers := make([]Provider, 0, len(registry))
+	for _, name := range AllProviders() {
+		if _, isExternal := external[name]; isExternal {
+			continue
+		}
+		if registered, ok := registry[name]; ok {
+			providers = append(providers, registered)
+		}
+	}
+	return providers
+}
+
+// RegisterExternal adds a dynamically loaded provider without allowing it to
+// replace a built-in or another plugin provider.
+func RegisterExternal(p Provider) error {
+	if p == nil || p.Info().Name == "" {
+		return fmt.Errorf("model provider name is required")
+	}
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	name := p.Info().Name
+	if _, exists := registry[name]; exists {
+		return fmt.Errorf("model provider %q already registered", name)
+	}
+	registry[name] = p
+	external[name] = struct{}{}
+	return nil
+}
+
+func UnregisterExternal(name ProviderName) error {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	if _, ok := external[name]; !ok {
+		return fmt.Errorf("external model provider %q is not registered", name)
+	}
+	delete(registry, name)
+	delete(external, name)
+	return nil
+}
+
 // Get 通过名称从注册表中获取提供者
 func Get(name ProviderName) (Provider, bool) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
+	p, ok := registry[name]
+	return p, ok
+}
+
+func GetExternal(name ProviderName) (Provider, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	if _, ok := external[name]; !ok {
+		return nil, false
+	}
 	p, ok := registry[name]
 	return p, ok
 }
@@ -195,6 +283,9 @@ func List() []ProviderInfo {
 			result = append(result, p.Info())
 		}
 	}
+	for _, name := range sortedExternalProviderNames() {
+		result = append(result, registry[name].Info())
+	}
 	return result
 }
 
@@ -215,7 +306,22 @@ func ListByModelType(modelType types.ModelType) []ProviderInfo {
 			}
 		}
 	}
+	for _, name := range sortedExternalProviderNames() {
+		info := registry[name].Info()
+		if slices.Contains(info.ModelTypes, modelType) {
+			result = append(result, info)
+		}
+	}
 	return result
+}
+
+func sortedExternalProviderNames() []ProviderName {
+	names := make([]ProviderName, 0, len(external))
+	for name := range external {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
 
 // DetectProvider 通过 BaseURL 检测服务商

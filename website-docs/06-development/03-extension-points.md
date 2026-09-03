@@ -38,6 +38,12 @@ graph LR
 
 Go 侧绝大多数扩展点的**注册中枢**是 `internal/container/container.go`（依赖注入容器）：检索引擎 `initRetrieveEngineRegistry()`、联网搜索 `registerWebSearchProviders()`、IM 适配器 `registerIMAdapterFactories()`、数据源连接器 `initConnectorRegistry()`。
 
+> 外部仓库扩展无需再修改上述注册点。`WEKNORA_PLUGIN_DIRS` 可发现带
+> `plugin.yaml` 的进程间 gRPC/OCI 插件；数据源、联网搜索、文档解析、
+> OpenAI-compatible 模型厂商和检索引擎统一经过插件 Manager 完成版本校验、
+> 权限隔离、健康检查与动态启停。协议、模板和完整开发步骤见
+> [`plugin/README.md`](../../plugin/README.md)。下文的源码注册步骤仍适用于内置扩展。
+
 ---
 
 ## 1. 新增文档解析器（docreader，Python）

@@ -102,6 +102,10 @@ func (h *ModelHandler) CreateModel(c *gin.Context) {
 		Description: secutils.SanitizeForLog(req.Description),
 		Parameters:  req.Parameters,
 	}
+	if err := validateExternalModelProvider(model); err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
 
 	if err := h.service.CreateModel(ctx, model); err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
@@ -627,6 +631,10 @@ func (h *ModelHandler) UpdateModel(c *gin.Context) {
 
 	model.Source = req.Source
 	model.Type = req.Type
+	if err := validateExternalModelProvider(model); err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
 
 	logger.Infof(ctx, "Updating model, ID: %s, Name: %s", id, model.Name)
 	if err := h.service.UpdateModel(ctx, model); err != nil {
@@ -644,6 +652,24 @@ func (h *ModelHandler) UpdateModel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    dto.NewModelResponse(ctx, model),
+	})
+}
+
+func validateExternalModelProvider(model *types.Model) error {
+	if model == nil || model.Parameters.Provider == "" {
+		return nil
+	}
+	registered, ok := provider.GetExternal(provider.ProviderName(model.Parameters.Provider))
+	if !ok {
+		return nil
+	}
+	extra := make(map[string]any, len(model.Parameters.ExtraConfig))
+	for key, value := range model.Parameters.ExtraConfig {
+		extra[key] = value
+	}
+	return registered.ValidateConfig(&provider.Config{
+		Provider: provider.ProviderName(model.Parameters.Provider), BaseURL: model.Parameters.BaseURL,
+		APIKey: model.Parameters.APIKey, ModelName: model.Name, ModelID: model.ID, Extra: extra,
 	})
 }
 
@@ -696,11 +722,13 @@ func (h *ModelHandler) DeleteModel(c *gin.Context) {
 
 // ModelProviderDTO 模型厂商信息 DTO
 type ModelProviderDTO struct {
-	Value       string            `json:"value"`       // provider 标识符
-	Label       string            `json:"label"`       // 显示名称
-	Description string            `json:"description"` // 描述
-	DefaultURLs map[string]string `json:"defaultUrls"` // 按模型类型区分的默认 URL
-	ModelTypes  []string          `json:"modelTypes"`  // 支持的模型类型
+	Value        string                      `json:"value"`       // provider 标识符
+	Label        string                      `json:"label"`       // 显示名称
+	Description  string                      `json:"description"` // 描述
+	DefaultURLs  map[string]string           `json:"defaultUrls"` // 按模型类型区分的默认 URL
+	ModelTypes   []string                    `json:"modelTypes"`  // 支持的模型类型
+	RequiresAuth bool                        `json:"requiresAuth"`
+	ExtraFields  []provider.ExtraFieldConfig `json:"extraFields,omitempty"`
 }
 
 // modelTypeToFrontend 将后端 ModelType 转换为前端兼容的字符串
@@ -785,11 +813,13 @@ func (h *ModelHandler) ListModelProviders(c *gin.Context) {
 		}
 
 		result = append(result, ModelProviderDTO{
-			Value:       string(p.Name),
-			Label:       p.DisplayName,
-			Description: p.Description,
-			DefaultURLs: defaultURLs,
-			ModelTypes:  modelTypes,
+			Value:        string(p.Name),
+			Label:        p.DisplayName,
+			Description:  p.Description,
+			DefaultURLs:  defaultURLs,
+			ModelTypes:   modelTypes,
+			RequiresAuth: p.RequiresAuth,
+			ExtraFields:  p.ExtraFields,
 		})
 	}
 

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package weknora.plugin.v1;
+
+option go_package = "github.com/Tencent/WeKnora/plugin/proto;pluginproto";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+// RetrievalEnginePlugin uses JSON payloads inside protobuf byte envelopes. The
+// JSON schemas are versioned by protocol_version in GetInfo. This keeps the
+// boundary independent from WeKnora's internal Go structs while v1 stabilizes.
+service RetrievalEnginePlugin {
+  rpc GetInfo(google.protobuf.Empty) returns (google.protobuf.BytesValue);
+  rpc Upsert(google.protobuf.BytesValue) returns (google.protobuf.Empty);
+  rpc Search(google.protobuf.BytesValue) returns (google.protobuf.BytesValue);
+  rpc Delete(google.protobuf.BytesValue) returns (google.protobuf.Empty);
+  rpc Copy(google.protobuf.BytesValue) returns (google.protobuf.Empty);
+  rpc Update(google.protobuf.BytesValue) returns (google.protobuf.Empty);
+  rpc Estimate(google.protobuf.BytesValue) returns (google.protobuf.Int64Value);
+}

@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package weknora.plugin.v1;
+
+option go_package = "github.com/Tencent/WeKnora/plugin/proto;pluginproto";
+
+service DocumentParserPlugin {
+  rpc GetInfo(DocumentParserInfoRequest) returns (DocumentParserInfoResponse);
+  rpc Parse(DocumentParseRequest) returns (stream DocumentParseFrame);
+}
+
+message DocumentParserInfoRequest {}
+message DocumentParserInfoResponse {
+  string id = 1;
+  string version = 2;
+  string protocol_version = 3;
+  string engine_name = 4;
+  string description = 5;
+  repeated string file_types = 6;
+}
+
+message DocumentParseRequest {
+  bytes file_content = 1;
+  string file_name = 2;
+  string file_type = 3;
+  string url = 4;
+  string title = 5;
+  string request_id = 6;
+  map<string, string> config_overrides = 7;
+}
+
+message DocumentParseMeta {
+  string markdown_content = 1;
+  string image_dir_path = 2;
+  map<string, string> metadata = 3;
+  string error = 4;
+  bool is_audio = 5;
+}
+
+message DocumentImageRef {
+  string filename = 1;
+  string original_ref = 2;
+  string mime_type = 3;
+  string storage_key = 4;
+  bytes image_data = 5;
+  bool is_original = 6;
+}
+
+message DocumentAudioChunk { bytes data = 1; }
+
+message DocumentParseFrame {
+  oneof payload {
+    DocumentParseMeta meta = 1;
+    DocumentImageRef image = 2;
+    DocumentAudioChunk audio = 3;
+  }
+}

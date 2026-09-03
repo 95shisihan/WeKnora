@@ -148,6 +148,25 @@ func (r *RetrieveEngineRegistry) Register(repo interfaces.RetrieveEngineService)
 	return nil
 }
 
+// RegisterExternal follows the same collision rules as built-in engine
+// registration. Keeping one map makes built-in and external lookup identical.
+func (r *RetrieveEngineRegistry) RegisterExternal(svc interfaces.RetrieveEngineService) error {
+	return r.Register(svc)
+}
+
+// UnregisterExternal removes an engine type installed by the plugin manager.
+// It is intentionally idempotence-safe only for known entries: a missing type
+// signals a lifecycle/registry mismatch to the admin endpoint.
+func (r *RetrieveEngineRegistry) UnregisterExternal(engineType types.RetrieverEngineType) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.byEngineType[engineType]; !exists {
+		return fmt.Errorf("repository of type %s not found", engineType)
+	}
+	delete(r.byEngineType, engineType)
+	return nil
+}
+
 // GetRetrieveEngineService retrieves a retrieval engine service by type.
 // Only searches the byEngineType map (env stores).
 func (r *RetrieveEngineRegistry) GetRetrieveEngineService(repoType types.RetrieverEngineType) (

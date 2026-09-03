@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
 )
@@ -95,6 +96,7 @@ type StreamingConnector interface {
 
 // ConnectorRegistry manages the registration and lookup of available connectors
 type ConnectorRegistry struct {
+	mu         sync.RWMutex
 	connectors map[string]Connector
 }
 
@@ -113,12 +115,19 @@ func (r *ConnectorRegistry) Register(connector Connector) error {
 	if connector.Type() == "" {
 		return ErrConnectorTypeEmpty
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.connectors[connector.Type()]; exists {
+		return ErrConnectorAlreadyRegistered
+	}
 	r.connectors[connector.Type()] = connector
 	return nil
 }
 
 // Get retrieves a connector by type
 func (r *ConnectorRegistry) Get(connectorType string) (Connector, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	connector, exists := r.connectors[connectorType]
 	if !exists {
 		return nil, ErrConnectorNotFound
@@ -128,6 +137,8 @@ func (r *ConnectorRegistry) Get(connectorType string) (Connector, error) {
 
 // List returns all registered connector types
 func (r *ConnectorRegistry) List() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	types := make([]string, 0, len(r.connectors))
 	for t := range r.connectors {
 		types = append(types, t)
@@ -135,15 +146,30 @@ func (r *ConnectorRegistry) List() []string {
 	return types
 }
 
+// Unregister atomically removes a connector so new syncs cannot acquire it.
+// A caller that owns the connector runtime may close it after this returns.
+func (r *ConnectorRegistry) Unregister(connectorType string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.connectors[connectorType]; !exists {
+		return ErrConnectorNotFound
+	}
+	delete(r.connectors, connectorType)
+	return nil
+}
+
 // ConnectorMetadata provides metadata about available connectors
 type ConnectorMetadata struct {
-	Type         string   `json:"type"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Icon         string   `json:"icon,omitempty"`
-	Priority     int      `json:"priority"`     // Priority order for UI display (lower = higher priority)
-	AuthType     string   `json:"auth_type"`    // "oauth2", "api_key", "token", etc.
-	Capabilities []string `json:"capabilities"` // "incremental", "webhook", "deletion_sync", etc.
+	Type         string         `json:"type"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Icon         string         `json:"icon,omitempty"`
+	Priority     int            `json:"priority"`     // Priority order for UI display (lower = higher priority)
+	AuthType     string         `json:"auth_type"`    // "oauth2", "api_key", "token", etc.
+	Capabilities []string       `json:"capabilities"` // "incremental", "webhook", "deletion_sync", etc.
+	Source       string         `json:"source,omitempty"`
+	PluginID     string         `json:"plugin_id,omitempty"`
+	ConfigSchema map[string]any `json:"config_schema,omitempty"`
 }
 
 // GetConnectorMetadata returns metadata for all available connectors
@@ -287,9 +313,45 @@ var ConnectorMetadataRegistry = map[string]ConnectorMetadata{
 	},
 }
 
+var connectorMetadataMu sync.RWMutex
+
+// RegisterConnectorMetadata publishes connector metadata to the same API used
+// by built-ins. It is called by the external plugin loader after identity and
+// health checks succeed.
+func RegisterConnectorMetadata(metadata ConnectorMetadata) error {
+	if metadata.Type == "" {
+		return ErrConnectorTypeEmpty
+	}
+	connectorMetadataMu.Lock()
+	defer connectorMetadataMu.Unlock()
+	if _, exists := ConnectorMetadataRegistry[metadata.Type]; exists {
+		return ErrConnectorAlreadyRegistered
+	}
+	ConnectorMetadataRegistry[metadata.Type] = metadata
+	return nil
+}
+
+func UnregisterConnectorMetadata(connectorType string) {
+	connectorMetadataMu.Lock()
+	defer connectorMetadataMu.Unlock()
+	delete(ConnectorMetadataRegistry, connectorType)
+}
+
+// GetConnectorMetadata returns a copy of one connector's catalog entry. It is
+// used by the plugin lifecycle adapter to withdraw and republish built-in
+// metadata atomically with the connector implementation.
+func GetConnectorMetadata(connectorType string) (ConnectorMetadata, bool) {
+	connectorMetadataMu.RLock()
+	defer connectorMetadataMu.RUnlock()
+	metadata, ok := ConnectorMetadataRegistry[connectorType]
+	return metadata, ok
+}
+
 // ListAvailableConnectors returns all available connector metadata
 // sorted by priority
 func ListAvailableConnectors() []ConnectorMetadata {
+	connectorMetadataMu.RLock()
+	defer connectorMetadataMu.RUnlock()
 	metadata := make([]ConnectorMetadata, 0, len(ConnectorMetadataRegistry))
 	for _, meta := range ConnectorMetadataRegistry {
 		metadata = append(metadata, meta)

@@ -3,6 +3,7 @@ package docparser
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -43,15 +44,115 @@ type ReaderDeps struct {
 
 // localEngines holds all locally registered parser engines, in registration
 // order — which is also the order the engine list is shown in.
-var localEngines []EngineRegistration
+var (
+	engineMu        sync.RWMutex
+	localEngines    []EngineRegistration
+	externalEngines = make(map[string]struct{})
+)
 
 // RegisterEngine adds an engine to the local registry. Called from init().
 func RegisterEngine(e EngineRegistration) {
+	engineMu.Lock()
+	defer engineMu.Unlock()
 	localEngines = append(localEngines, e)
+}
+
+// RegisterBuiltinEngine republishes an in-process parser after a lifecycle
+// enable operation without marking it as an external plugin.
+func RegisterBuiltinEngine(e EngineRegistration) error {
+	if e == nil || e.Name() == "" {
+		return fmt.Errorf("document parser engine name is required")
+	}
+	engineMu.Lock()
+	defer engineMu.Unlock()
+	for _, existing := range localEngines {
+		if existing.Name() == e.Name() {
+			return fmt.Errorf("document parser engine %q already registered", e.Name())
+		}
+	}
+	localEngines = append(localEngines, e)
+	return nil
+}
+
+func UnregisterBuiltinEngine(name string) error {
+	engineMu.Lock()
+	defer engineMu.Unlock()
+	if _, isExternal := externalEngines[name]; isExternal {
+		return fmt.Errorf("document parser engine %q is external", name)
+	}
+	for index, engine := range localEngines {
+		if engine.Name() == name {
+			localEngines = append(localEngines[:index], localEngines[index+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("builtin document parser engine %q is not registered", name)
+}
+
+// HasEngine reports whether a parser is currently published in the shared
+// local lookup path.
+func HasEngine(name string) bool {
+	engineMu.RLock()
+	defer engineMu.RUnlock()
+	for _, engine := range localEngines {
+		if engine.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
+// BuiltinEngines returns a snapshot suitable for lifecycle adoption.
+func BuiltinEngines() []EngineRegistration {
+	engineMu.RLock()
+	defer engineMu.RUnlock()
+	result := make([]EngineRegistration, 0, len(localEngines))
+	for _, engine := range localEngines {
+		if _, isExternal := externalEngines[engine.Name()]; !isExternal {
+			result = append(result, engine)
+		}
+	}
+	return result
+}
+
+// RegisterExternalEngine publishes an out-of-process engine into the same
+// catalog and lookup path as built-in engines.
+func RegisterExternalEngine(e EngineRegistration) error {
+	if e == nil || e.Name() == "" {
+		return fmt.Errorf("document parser engine name is required")
+	}
+	engineMu.Lock()
+	defer engineMu.Unlock()
+	for _, existing := range localEngines {
+		if existing.Name() == e.Name() {
+			return fmt.Errorf("document parser engine %q already registered", e.Name())
+		}
+	}
+	localEngines = append(localEngines, e)
+	externalEngines[e.Name()] = struct{}{}
+	return nil
+}
+
+func UnregisterExternalEngine(name string) error {
+	engineMu.Lock()
+	defer engineMu.Unlock()
+	if _, ok := externalEngines[name]; !ok {
+		return fmt.Errorf("external document parser engine %q is not registered", name)
+	}
+	for index, engine := range localEngines {
+		if engine.Name() == name {
+			localEngines = append(localEngines[:index], localEngines[index+1:]...)
+			break
+		}
+	}
+	delete(externalEngines, name)
+	return nil
 }
 
 // lookupEngine returns the locally registered engine with this name.
 func lookupEngine(name string) (EngineRegistration, bool) {
+	engineMu.RLock()
+	defer engineMu.RUnlock()
 	for _, engine := range localEngines {
 		if engine.Name() == name {
 			return engine, true
@@ -100,15 +201,18 @@ func remoteReader(deps ReaderDeps) (interfaces.DocReader, error) {
 func ListAllEngines(
 	docreaderConnected bool, overrides map[string]string, remoteEngines []types.ParserEngineInfo,
 ) []types.ParserEngineInfo {
+	engineMu.RLock()
+	engines := append([]EngineRegistration(nil), localEngines...)
+	engineMu.RUnlock()
 	remoteMap := make(map[string]types.ParserEngineInfo, len(remoteEngines))
 	for _, re := range remoteEngines {
 		remoteMap[re.Name] = re
 	}
 
-	seen := make(map[string]bool, len(localEngines))
-	result := make([]types.ParserEngineInfo, 0, len(localEngines)+len(remoteEngines))
+	seen := make(map[string]bool, len(engines))
+	result := make([]types.ParserEngineInfo, 0, len(engines)+len(remoteEngines))
 
-	for _, e := range localEngines {
+	for _, e := range engines {
 		name := e.Name()
 		seen[name] = true
 

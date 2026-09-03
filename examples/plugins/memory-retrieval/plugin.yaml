@@ -1,0 +1,27 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.memory-retrieval
+  name: In-memory Retrieval Example
+  version: 0.1.0
+  description: Conformance example implementing keyword and vector retrieval.
+spec:
+  enabled: true
+  extensionPoints:
+    - type: retrieval_engine
+      id: memory_plugin
+      protocolVersion: v1
+      name: In-memory Retrieval
+      capabilities: [keywords, vector]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: oci
+    image: weknora/plugin-memory-retrieval:0.1.0
+    startupTimeout: 15s
+    resources: {memoryBytes: 67108864, cpuLimit: 0.25, pidsLimit: 32}
+  configSchema: {type: object, properties: {}}
+  permissions:
+    network: {outbound: false}
+    filesystem: {read: [], write: []}

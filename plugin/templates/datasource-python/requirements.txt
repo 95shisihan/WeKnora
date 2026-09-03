@@ -1,0 +1,4 @@
+grpcio>=1.60,<2
+grpcio-health-checking>=1.60,<2
+grpcio-tools>=1.60,<2
+protobuf>=5,<7

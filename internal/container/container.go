@@ -83,7 +83,9 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/chat"
 	"github.com/Tencent/WeKnora/internal/models/embedding"
 	"github.com/Tencent/WeKnora/internal/models/limiter"
+	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/models/utils/ollama"
+	pluginhost "github.com/Tencent/WeKnora/internal/plugin"
 	"github.com/Tencent/WeKnora/internal/router"
 	"github.com/Tencent/WeKnora/internal/storageallowlist"
 	"github.com/Tencent/WeKnora/internal/stream"
@@ -252,7 +254,6 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// Web search service (needed by AgentService)
 	logger.Debugf(ctx, "[Container] Registering web search registry and providers...")
 	must(container.Provide(infra_web_search.NewRegistry))
-	must(container.Invoke(registerWebSearchProviders))
 	must(container.Provide(repository.NewWebSearchProviderRepository))
 	must(container.Provide(repository.NewVectorStoreRepository))
 	must(container.Provide(repository.NewStorageBackendRepository))
@@ -273,6 +274,13 @@ func BuildContainer(container *dig.Container) *dig.Container {
 			return nil, fmt.Errorf("registry does not implement StoreRegistry")
 		}
 		return sr, nil
+	}))
+	must(container.Provide(func(r interfaces.RetrieveEngineRegistry) (interfaces.ExternalRetrieveEngineRegistry, error) {
+		external, ok := r.(*retriever.RetrieveEngineRegistry)
+		if !ok {
+			return nil, fmt.Errorf("retrieve engine registry does not support external plugins")
+		}
+		return external, nil
 	}))
 	must(container.Provide(service.NewVectorStoreService))
 	must(container.Provide(service.NewStorageBackendServiceWithResources))
@@ -353,6 +361,10 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// Data source sync framework
 	logger.Debugf(ctx, "[Container] Registering data source sync framework...")
 	must(container.Provide(initConnectorRegistry))
+	// External web-search providers are owned by the same plugin manager as
+	// datasource connectors, so registration must happen after that manager is
+	// available in the container.
+	must(container.Invoke(registerWebSearchProviders))
 	must(container.Provide(datasource.NewScheduler))
 	must(container.Provide(service.NewDataSourceService))
 	must(container.Invoke(startDataSourceScheduler))
@@ -436,6 +448,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 
 	// Data source handler
 	must(container.Provide(handler.NewDataSourceHandler))
+	must(container.Provide(handler.NewPluginHandler))
 	// Wiki page handler
 	must(container.Provide(handler.NewWikiPageHandler))
 	// IM integration
@@ -1616,18 +1629,51 @@ func NewDuckDB() (*sql.DB, error) {
 // registerWebSearchProviders registers all web search provider types to the registry.
 // Each provider type is registered with its factory function that accepts parameters.
 // Provider instances are created on-demand when tenants configure them.
-func registerWebSearchProviders(registry *infra_web_search.Registry) {
-	registry.Register("duckduckgo", infra_web_search.NewDuckDuckGoProvider)
-	registry.Register("google", infra_web_search.NewGoogleProvider)
-	registry.Register("bing", infra_web_search.NewBingProvider)
-	registry.Register("tavily", infra_web_search.NewTavilyProvider)
-	registry.Register("ollama", infra_web_search.NewOllamaProvider)
-	registry.Register("baidu", infra_web_search.NewBaiduProvider)
-	registry.Register("searxng", infra_web_search.NewSearxngProvider)
-	registry.Register("keenable", infra_web_search.NewKeenableProvider)
-	registry.Register("zhipu", infra_web_search.NewZhipuProvider)
-	registry.Register("exa", infra_web_search.NewExaProvider)
-	registry.Register("metaso", infra_web_search.NewMetasoProvider)
+func registerWebSearchProviders(registry *infra_web_search.Registry, pluginManager *pluginhost.Manager) error {
+	builtins := []struct {
+		id      string
+		factory infra_web_search.ProviderFactory
+	}{
+		{"duckduckgo", infra_web_search.NewDuckDuckGoProvider},
+		{"google", infra_web_search.NewGoogleProvider},
+		{"bing", infra_web_search.NewBingProvider},
+		{"tavily", infra_web_search.NewTavilyProvider},
+		{"ollama", infra_web_search.NewOllamaProvider},
+		{"baidu", infra_web_search.NewBaiduProvider},
+		{"searxng", infra_web_search.NewSearxngProvider},
+		{"keenable", infra_web_search.NewKeenableProvider},
+		{"zhipu", infra_web_search.NewZhipuProvider},
+		{"exa", infra_web_search.NewExaProvider},
+		{"metaso", infra_web_search.NewMetasoProvider},
+	}
+	for _, builtin := range builtins {
+		info, ok := registry.Type(builtin.id)
+		if !ok {
+			return fmt.Errorf("register builtin web search %s: metadata not found", builtin.id)
+		}
+		id, factory := builtin.id, builtin.factory
+		if err := pluginManager.RegisterBuiltin(context.Background(), pluginhost.BuiltinRegistration{
+			PluginID: "builtin.web_search." + id, Name: info.Name,
+			ExtensionType: pluginhost.ExtensionWebSearch, ExtensionID: id,
+			Enable:  func(context.Context) error { return registry.RegisterBuiltin(id, factory) },
+			Disable: func() error { registry.Unregister(id); return nil },
+			Health: func(context.Context) error {
+				if !registry.Has(id) {
+					return fmt.Errorf("web search registry entry %s is missing", id)
+				}
+				return nil
+			},
+		}); err != nil {
+			return fmt.Errorf("register builtin web search %s: %w", id, err)
+		}
+	}
+	for _, external := range pluginManager.WebSearches() {
+		if err := registry.RegisterExternal(external.Point.ID, external.Connector.Factory(), external.TypeInfo()); err != nil {
+			return fmt.Errorf("register external web search provider %s: %w", external.Point.ID, err)
+		}
+		logger.Infof(context.Background(), "[Plugin] loaded web search provider %s from %s", external.Point.ID, external.Manifest.Metadata.ID)
+	}
+	return nil
 }
 
 // registerIMService registers adapter factories, loads enabled channels, and
@@ -1660,50 +1706,255 @@ func registerIMService(imService *imPkg.Service, cleaner interfaces.ResourceClea
 // initConnectorRegistry creates and populates the connector registry with all available connectors.
 // Aggregates registration errors via errors.Join so a misconfigured or duplicated connector fails
 // container initialization loudly instead of silently disabling the feature at runtime.
-func initConnectorRegistry() (*datasource.ConnectorRegistry, error) {
+func initConnectorRegistry(cleaner interfaces.ResourceCleaner, retrievalRegistry interfaces.ExternalRetrieveEngineRegistry) (*datasource.ConnectorRegistry, *pluginhost.Manager, error) {
 	registry := datasource.NewConnectorRegistry()
+	hostVersion := strings.TrimSpace(os.Getenv("WEKNORA_VERSION"))
+	if hostVersion == "" {
+		if raw, err := os.ReadFile("VERSION"); err == nil {
+			hostVersion = strings.TrimSpace(string(raw))
+		}
+	}
+	pluginManager := pluginhost.NewManager(hostVersion, func(status pluginhost.Status) {
+		if status.State == pluginhost.StateUnhealthy {
+			logger.Errorf(context.Background(), "[Plugin] %s is unhealthy: %s", status.PluginID, status.LastError)
+		}
+	})
+	cleaner.RegisterWithName("PluginManager", pluginManager.Close)
 
 	var errs error
-	if err := registry.Register(wiki.NewConnector(core.RegionFeishu)); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register feishu connector: %w", err))
+	var registeredExternalRetrievers []types.RetrieverEngineType
+	builtinConnectors := []datasource.Connector{
+		wiki.NewConnector(core.RegionFeishu),
+		wiki.NewConnector(core.RegionLark),
+		drive.NewDriveConnector(core.RegionFeishuDrive),
+		drive.NewDriveConnector(core.RegionLarkDrive),
+		notionConnector.NewConnector(),
+		yuqueConnector.NewConnector(),
+		imaConnector.NewConnector(),
+		rssConnector.NewConnector(),
+		gitlabConnector.NewConnector(),
 	}
-	// Lark is Feishu's international cloud: same connector, different host/tenant.
-	if err := registry.Register(wiki.NewConnector(core.RegionLark)); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register lark connector: %w", err))
+	for _, connector := range builtinConnectors {
+		if err := registerBuiltinDatasource(context.Background(), pluginManager, registry, connector); err != nil {
+			errs = errors.Join(errs, err)
+		}
 	}
-	// Feishu/Lark Drive (云盘) mode: different connector type so the registry
-	// dispatches to the Drive connector. Shares core.Client/Region/export logic
-	// with the wiki connector. See 飞书云盘数据源设计.md / ADR-0001.
-	if err := registry.Register(drive.NewDriveConnector(core.RegionFeishuDrive)); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register feishu_drive connector: %w", err))
+	if err := registerBuiltinDocumentParsers(context.Background(), pluginManager); err != nil {
+		errs = errors.Join(errs, err)
 	}
-	if err := registry.Register(drive.NewDriveConnector(core.RegionLarkDrive)); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register lark_drive connector: %w", err))
+	if err := registerBuiltinModelProviders(context.Background(), pluginManager); err != nil {
+		errs = errors.Join(errs, err)
 	}
-	if err := registry.Register(notionConnector.NewConnector()); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register notion connector: %w", err))
-	}
-	if err := registry.Register(yuqueConnector.NewConnector()); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register yuque connector: %w", err))
-	}
-	if err := registry.Register(imaConnector.NewConnector()); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register ima connector: %w", err))
-	}
-	if err := registry.Register(rssConnector.NewConnector()); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register rss connector: %w", err))
-	}
-	if err := registry.Register(gitlabConnector.NewConnector()); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("register gitlab connector: %w", err))
+	if err := registerBuiltinRetrievalEngines(context.Background(), pluginManager, retrievalRegistry); err != nil {
+		errs = errors.Join(errs, err)
 	}
 
-	// Future connectors will be registered here:
-	// if err := registry.Register(confluenceConnector.NewConnector()); err != nil { ... }
-	// if err := registry.Register(githubConnector.NewConnector()); err != nil { ... }
+	pluginDirs := filepath.SplitList(os.Getenv("WEKNORA_PLUGIN_DIRS"))
+	if len(pluginDirs) > 0 {
+		if err := pluginManager.LoadDirectories(context.Background(), pluginDirs); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("load external plugins: %w", err))
+		}
+		for _, external := range pluginManager.Datasources() {
+			if err := registry.Register(external.Connector); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("register external connector %s: %w", external.Metadata.Type, err))
+				continue
+			}
+			if err := datasource.RegisterConnectorMetadata(external.Metadata); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("register external connector metadata %s: %w", external.Metadata.Type, err))
+				continue
+			}
+			logger.Infof(context.Background(), "[Plugin] loaded datasource %s from %s", external.Metadata.Type, external.Manifest.Metadata.ID)
+		}
+		for _, external := range pluginManager.DocumentParsers() {
+			if err := docparser.RegisterExternalEngine(external.Connector); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("register external document parser %s: %w", external.Point.ID, err))
+				continue
+			}
+			logger.Infof(context.Background(), "[Plugin] loaded document parser %s from %s", external.Point.ID, external.Manifest.Metadata.ID)
+		}
+		for _, external := range pluginManager.ModelProviders() {
+			if err := provider.RegisterExternal(external.Connector); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("register external model provider %s: %w", external.Point.ID, err))
+				continue
+			}
+			logger.Infof(context.Background(), "[Plugin] loaded model provider %s from %s", external.Point.ID, external.Manifest.Metadata.ID)
+		}
+		for _, external := range pluginManager.RetrievalEngines() {
+			if err := types.RegisterExternalRetrieverEngine(external.Connector.EngineType(), external.Connector.Support()); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("register external retrieval metadata %s: %w", external.Point.ID, err))
+				continue
+			}
+			if err := retrievalRegistry.RegisterExternal(external.Connector); err != nil {
+				types.UnregisterExternalRetrieverEngine(external.Connector.EngineType())
+				errs = errors.Join(errs, fmt.Errorf("register external retrieval engine %s: %w", external.Point.ID, err))
+				continue
+			}
+			registeredExternalRetrievers = append(registeredExternalRetrievers, external.Connector.EngineType())
+			logger.Infof(context.Background(), "[Plugin] loaded retrieval engine %s from %s", external.Point.ID, external.Manifest.Metadata.ID)
+		}
+	}
+	pluginManager.StartHealthChecks(30 * time.Second)
 
 	if errs != nil {
-		return nil, errs
+		// Container construction will abort, so do not leave already-started
+		// plugin processes or OCI containers behind while dig unwinds.
+		for _, engineType := range registeredExternalRetrievers {
+			_ = retrievalRegistry.UnregisterExternal(engineType)
+			types.UnregisterExternalRetrieverEngine(engineType)
+		}
+		errs = errors.Join(errs, pluginManager.Close())
+		return nil, pluginManager, errs
 	}
-	return registry, nil
+	return registry, pluginManager, nil
+}
+
+func registerBuiltinDatasource(
+	ctx context.Context, manager *pluginhost.Manager, registry *datasource.ConnectorRegistry,
+	connector datasource.Connector,
+) error {
+	connectorType := connector.Type()
+	metadata, ok := datasource.GetConnectorMetadata(connectorType)
+	if !ok {
+		return fmt.Errorf("register builtin datasource %s: metadata not found", connectorType)
+	}
+	// Static metadata is converted into lifecycle-owned metadata before the
+	// manager starts the connector, so enable/disable affects API discovery and
+	// runtime lookup together.
+	datasource.UnregisterConnectorMetadata(connectorType)
+	err := manager.RegisterBuiltin(ctx, pluginhost.BuiltinRegistration{
+		PluginID: "builtin.datasource." + connectorType,
+		Name:     metadata.Name, ExtensionType: pluginhost.ExtensionDatasource,
+		ExtensionID: connectorType,
+		Enable: func(context.Context) error {
+			if err := registry.Register(connector); err != nil {
+				return err
+			}
+			if err := datasource.RegisterConnectorMetadata(metadata); err != nil {
+				_ = registry.Unregister(connectorType)
+				return err
+			}
+			return nil
+		},
+		Disable: func() error {
+			if err := registry.Unregister(connectorType); err != nil {
+				return err
+			}
+			datasource.UnregisterConnectorMetadata(connectorType)
+			return nil
+		},
+		Health: func(context.Context) error {
+			registered, err := registry.Get(connectorType)
+			if err != nil {
+				return err
+			}
+			if registered != connector {
+				return fmt.Errorf("datasource registry identity changed for %s", connectorType)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		// Restore catalog visibility when startup failed before lifecycle
+		// ownership was established; container construction will still fail.
+		if _, exists := datasource.GetConnectorMetadata(connectorType); !exists {
+			_ = datasource.RegisterConnectorMetadata(metadata)
+		}
+		return fmt.Errorf("register builtin datasource %s: %w", connectorType, err)
+	}
+	return nil
+}
+
+func registerBuiltinDocumentParsers(ctx context.Context, manager *pluginhost.Manager) error {
+	var result error
+	for _, engine := range docparser.BuiltinEngines() {
+		name := engine.Name()
+		if err := docparser.UnregisterBuiltinEngine(name); err != nil {
+			result = errors.Join(result, fmt.Errorf("prepare builtin document parser %s: %w", name, err))
+			continue
+		}
+		registration := engine
+		if err := manager.RegisterBuiltin(ctx, pluginhost.BuiltinRegistration{
+			PluginID: "builtin.document_parser." + name,
+			Name:     registration.Description(), ExtensionType: pluginhost.ExtensionDocumentParser,
+			ExtensionID: name,
+			Enable:      func(context.Context) error { return docparser.RegisterBuiltinEngine(registration) },
+			Disable:     func() error { return docparser.UnregisterBuiltinEngine(name) },
+			Health: func(context.Context) error {
+				if !docparser.HasEngine(name) {
+					return fmt.Errorf("document parser registry entry %s is missing", name)
+				}
+				return nil
+			},
+		}); err != nil {
+			result = errors.Join(result, fmt.Errorf("register builtin document parser %s: %w", name, err))
+		}
+	}
+	return result
+}
+
+func registerBuiltinModelProviders(ctx context.Context, manager *pluginhost.Manager) error {
+	var result error
+	for _, registered := range provider.BuiltinProviders() {
+		name := registered.Info().Name
+		if err := provider.UnregisterBuiltin(name); err != nil {
+			result = errors.Join(result, fmt.Errorf("prepare builtin model provider %s: %w", name, err))
+			continue
+		}
+		modelProvider := registered
+		info := modelProvider.Info()
+		if err := manager.RegisterBuiltin(ctx, pluginhost.BuiltinRegistration{
+			PluginID: "builtin.model_provider." + string(name),
+			Name:     info.DisplayName, ExtensionType: pluginhost.ExtensionModelProvider,
+			ExtensionID: string(name),
+			Enable:      func(context.Context) error { return provider.RegisterBuiltin(modelProvider) },
+			Disable:     func() error { return provider.UnregisterBuiltin(name) },
+			Health: func(context.Context) error {
+				if _, ok := provider.Get(name); !ok {
+					return fmt.Errorf("model provider registry entry %s is missing", name)
+				}
+				return nil
+			},
+		}); err != nil {
+			result = errors.Join(result, fmt.Errorf("register builtin model provider %s: %w", name, err))
+		}
+	}
+	return result
+}
+
+func registerBuiltinRetrievalEngines(
+	ctx context.Context, manager *pluginhost.Manager,
+	registry interfaces.ExternalRetrieveEngineRegistry,
+) error {
+	catalog, ok := registry.(interface {
+		GetAllRetrieveEngineServices() []interfaces.RetrieveEngineService
+		GetRetrieveEngineService(types.RetrieverEngineType) (interfaces.RetrieveEngineService, error)
+	})
+	if !ok {
+		return fmt.Errorf("retrieve engine registry does not expose lifecycle inventory")
+	}
+	var result error
+	for _, registered := range catalog.GetAllRetrieveEngineServices() {
+		engineType := registered.EngineType()
+		if err := registry.UnregisterExternal(engineType); err != nil {
+			result = errors.Join(result, fmt.Errorf("prepare builtin retrieval engine %s: %w", engineType, err))
+			continue
+		}
+		engine := registered
+		if err := manager.RegisterBuiltin(ctx, pluginhost.BuiltinRegistration{
+			PluginID: "builtin.retrieval_engine." + string(engineType),
+			Name:     string(engineType), ExtensionType: pluginhost.ExtensionRetrievalEngine,
+			ExtensionID: string(engineType),
+			Enable:      func(context.Context) error { return registry.RegisterExternal(engine) },
+			Disable:     func() error { return registry.UnregisterExternal(engineType) },
+			Health: func(context.Context) error {
+				_, err := catalog.GetRetrieveEngineService(engineType)
+				return err
+			},
+		}); err != nil {
+			result = errors.Join(result, fmt.Errorf("register builtin retrieval engine %s: %w", engineType, err))
+		}
+	}
+	return result
 }
 
 // startDataSourceScheduler starts the data source cron scheduler and registers cleanup.

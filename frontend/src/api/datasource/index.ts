@@ -72,6 +72,20 @@ export interface ConnectorMeta {
   priority: number
   auth_type: string
   capabilities: string[]
+  source?: 'builtin' | 'external'
+  plugin_id?: string
+  config_schema?: {
+    type?: string
+    required?: string[]
+    properties?: Record<string, {
+      type?: string
+      title?: string
+      description?: string
+      default?: unknown
+      format?: string
+      writeOnly?: boolean
+    }>
+  }
 }
 
 export interface Resource {

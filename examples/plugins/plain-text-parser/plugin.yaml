@@ -1,0 +1,30 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.plain-text-parser
+  name: Plain Text Parser
+  version: 0.1.0
+  description: Minimal out-of-process parser example.
+spec:
+  enabled: true
+  extensionPoints:
+    - type: document_parser
+      id: plain_text_plugin
+      protocolVersion: v1
+      name: Plain Text Plugin
+      description: Parses txt and Markdown without host code changes.
+      capabilities: [txt, md, markdown]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: oci
+    image: weknora/plugin-plain-text-parser:0.1.0
+    startupTimeout: 15s
+    resources: {memoryBytes: 67108864, cpuLimit: 0.25, pidsLimit: 32}
+  configSchema:
+    type: object
+    properties: {}
+  permissions:
+    network: {outbound: false}
+    filesystem: {read: [], write: []}

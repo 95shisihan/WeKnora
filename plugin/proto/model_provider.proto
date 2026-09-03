@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package weknora.plugin.v1;
+
+option go_package = "github.com/Tencent/WeKnora/plugin/proto;pluginproto";
+
+service ModelProviderPlugin {
+  rpc GetInfo(ModelProviderInfoRequest) returns (ModelProviderInfoResponse);
+  rpc ValidateConfig(ModelProviderValidateRequest) returns (ModelProviderValidateResponse);
+}
+
+message ModelProviderInfoRequest {}
+
+message ModelProviderConfigOption {
+  string label = 1;
+  string value = 2;
+}
+
+message ModelProviderConfigField {
+  string key = 1;
+  string label = 2;
+  string type = 3;
+  bool required = 4;
+  string default_value = 5;
+  string placeholder = 6;
+  repeated ModelProviderConfigOption options = 7;
+}
+
+message ModelProviderInfoResponse {
+  string id = 1;
+  string version = 2;
+  string protocol_version = 3;
+  string provider_name = 4;
+  string display_name = 5;
+  string description = 6;
+  map<string, string> default_urls = 7;
+  repeated string model_types = 8;
+  bool requires_auth = 9;
+  repeated ModelProviderConfigField extra_fields = 10;
+  string transport = 11;
+}
+
+message ModelProviderValidateRequest { bytes config_json = 1; }
+message ModelProviderValidateResponse {}

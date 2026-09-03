@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	infra_web_search "github.com/Tencent/WeKnora/internal/infrastructure/web_search"
 	"github.com/Tencent/WeKnora/internal/logger"
@@ -12,12 +13,13 @@ import (
 
 // webSearchProviderService implements interfaces.WebSearchProviderService
 type webSearchProviderService struct {
-	repo interfaces.WebSearchProviderRepository
+	repo     interfaces.WebSearchProviderRepository
+	registry *infra_web_search.Registry
 }
 
 // NewWebSearchProviderService creates a new web search provider service
-func NewWebSearchProviderService(repo interfaces.WebSearchProviderRepository) interfaces.WebSearchProviderService {
-	return &webSearchProviderService{repo: repo}
+func NewWebSearchProviderService(repo interfaces.WebSearchProviderRepository, registry *infra_web_search.Registry) interfaces.WebSearchProviderService {
+	return &webSearchProviderService{repo: repo, registry: registry}
 }
 
 // CreateProvider creates a new web search provider configuration.
@@ -26,11 +28,11 @@ func (s *webSearchProviderService) CreateProvider(ctx context.Context, provider 
 		return fmt.Errorf("tenant ID is required")
 	}
 
-	if !isValidProviderType(provider.Provider) {
+	if !s.registry.Has(string(provider.Provider)) {
 		return fmt.Errorf("invalid provider type: %s", provider.Provider)
 	}
 
-	if err := validateProviderParameters(provider.Provider, provider.Parameters); err != nil {
+	if err := s.validateProviderParameters(provider.Provider, provider.Parameters); err != nil {
 		return err
 	}
 
@@ -51,7 +53,7 @@ func (s *webSearchProviderService) UpdateProvider(ctx context.Context, provider 
 	}
 
 	// Validate provider type if set
-	if provider.Provider != "" && !isValidProviderType(provider.Provider) {
+	if provider.Provider != "" && !s.registry.Has(string(provider.Provider)) {
 		return fmt.Errorf("invalid provider type: %s", provider.Provider)
 	}
 
@@ -62,13 +64,46 @@ func (s *webSearchProviderService) UpdateProvider(ctx context.Context, provider 
 	}
 
 	if provider.Provider != "" {
-		if err := validateProviderParameters(provider.Provider, provider.Parameters); err != nil {
+		if err := s.validateProviderParameters(provider.Provider, provider.Parameters); err != nil {
 			return err
 		}
 	}
 
 	logger.Infof(ctx, "Updating web search provider: tenant=%d, id=%s", provider.TenantID, provider.ID)
 	return s.repo.Update(ctx, provider)
+}
+
+func (s *webSearchProviderService) validateProviderParameters(provider types.WebSearchProviderType, params types.WebSearchProviderParameters) error {
+	if isValidProviderType(provider) {
+		return validateProviderParameters(provider, params)
+	}
+	info, ok := s.registry.Type(string(provider))
+	if !ok {
+		return fmt.Errorf("invalid provider type: %s", provider)
+	}
+	if info.RequiresAPIKey && strings.TrimSpace(params.APIKey) == "" {
+		return fmt.Errorf("API key is required for %s provider", provider)
+	}
+	if info.RequiresEngineID && strings.TrimSpace(params.EngineID) == "" {
+		return fmt.Errorf("engine ID is required for %s provider", provider)
+	}
+	if info.RequiresBaseURL && strings.TrimSpace(params.BaseURL) == "" {
+		return fmt.Errorf("base URL is required for %s provider", provider)
+	}
+	if params.BaseURL != "" {
+		if err := infra_web_search.ValidateSearxngBaseURL(params.BaseURL); err != nil {
+			return err
+		}
+	}
+	for _, field := range info.ConfigFields {
+		if field.Required && strings.TrimSpace(params.ExtraConfig[field.Key]) == "" {
+			return fmt.Errorf("%s is required for %s provider", field.Key, provider)
+		}
+	}
+	// External plugins receive their opaque values through ExtraConfig. The
+	// plugin is the final authority for provider-specific semantics, while the
+	// host still applies its common proxy safety check.
+	return validateOptionalProxyURL(params.ProxyURL)
 }
 
 // UpdateProviderCredentials writes the api_key credential field. Web search

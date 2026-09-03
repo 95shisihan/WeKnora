@@ -1,0 +1,33 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.mock-model-provider
+  name: Mock Model Provider
+  version: 0.1.0
+  description: OpenAI-compatible provider metadata and validation example.
+spec:
+  enabled: true
+  extensionPoints:
+    - type: model_provider
+      id: mock_openai
+      protocolVersion: v1
+      name: Mock OpenAI-Compatible
+      capabilities: [KnowledgeQA, Embedding, Rerank]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: oci
+    image: weknora/plugin-mock-model-provider:0.1.0
+    startupTimeout: 15s
+    resources: {memoryBytes: 67108864, cpuLimit: 0.25, pidsLimit: 32}
+  configSchema:
+    type: object
+    required: [base_url, api_key]
+    properties:
+      base_url: {type: string, title: Base URL}
+      api_key: {type: string, title: API Key, writeOnly: true}
+      organization: {type: string, title: Organization, default: default}
+  permissions:
+    network: {outbound: false}
+    filesystem: {read: [], write: []}

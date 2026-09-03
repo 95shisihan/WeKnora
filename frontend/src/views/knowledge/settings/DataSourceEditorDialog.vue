@@ -13,7 +13,9 @@ import {
   deleteDataSource,
   putDataSourceCredentials,
   deleteDataSourceCredentials,
+  getConnectorTypes,
   type DataSource,
+  type ConnectorMeta,
   type Resource,
 } from '@/api/datasource'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
@@ -156,6 +158,7 @@ function removeRssAuthHeader(idx: number) {
 }
 
 function needsConnectionTest(): boolean {
+  if (currentDef.value?.external) return false
   return !(isEdit.value && credentialsConfigured.value && !replaceCredentialsMode.value)
 }
 
@@ -479,6 +482,9 @@ const schedulePresets = computed(() => [
 // --- Connector definitions ---
 interface ConnectorDef {
   type: string
+  displayName?: string
+  description?: string
+  external?: boolean
   available: boolean
   docUrl: string
   permissionDocUrl: string
@@ -493,10 +499,13 @@ interface ConnectorDef {
     hintKey?: string
     multiline?: boolean
     fieldType?: 'custom_headers'
+    label?: string
+    hint?: string
+    storage?: 'credentials' | 'settings'
   }[]
 }
 
-const connectorDefs = computed<ConnectorDef[]>(() => [
+const builtinConnectorDefs = computed<ConnectorDef[]>(() => [
   {
     type: 'feishu',
     available: true,
@@ -635,6 +644,35 @@ const connectorDefs = computed<ConnectorDef[]>(() => [
   },
 ])
 
+const externalConnectorMeta = ref<ConnectorMeta[]>([])
+const connectorDefs = computed<ConnectorDef[]>(() => [
+  ...builtinConnectorDefs.value,
+  ...externalConnectorMeta.value.map(meta => {
+    const required = new Set(meta.config_schema?.required || [])
+    return {
+      type: meta.type,
+      displayName: meta.name,
+      description: meta.description,
+      external: true,
+      available: true,
+      docUrl: '',
+      permissionDocUrl: '',
+      permissionPageUrl: '',
+      requiredPermissions: [],
+      fields: Object.entries(meta.config_schema?.properties || {}).map(([key, schema]) => ({
+        key,
+        labelKey: '',
+        label: schema.title || key,
+        placeholder: typeof schema.default === 'string' ? schema.default : '',
+        optional: !required.has(key),
+        secret: schema.writeOnly === true || schema.format === 'password',
+        hint: schema.description,
+        storage: schema.writeOnly === true || schema.format === 'password' ? 'credentials' as const : 'settings' as const,
+      })),
+    }
+  }),
+])
+
 
 const currentDef = computed(() => connectorDefs.value.find(d => d.type === form.value.type))
 
@@ -650,6 +688,13 @@ watch(visible, async (v) => {
       tempDsId.value = ''
     }
     return
+  }
+  try {
+    const response = await getConnectorTypes()
+    const all: ConnectorMeta[] = response?.data || response || []
+    externalConnectorMeta.value = all.filter(meta => meta.source === 'external')
+  } catch {
+    externalConnectorMeta.value = []
   }
   step.value = isEdit.value ? 1 : 0
   testResult.value = ''
@@ -741,6 +786,17 @@ watch(
 )
 
 watch(
+  () => form.value.config.settings,
+  () => {
+    if (currentDef.value?.external) {
+      testResult.value = ''
+      testErrorMsg.value = ''
+    }
+  },
+  { deep: true },
+)
+
+watch(
   rssAuthHeaders,
   () => {
     syncRssAuthHeadersToCredentials()
@@ -765,11 +821,26 @@ watch(
 function selectType(def: ConnectorDef) {
   if (!def.available) return
   form.value.type = def.type
-  form.value.name = t(`datasource.connector.${def.type}`)
+  form.value.name = def.displayName || t(`datasource.connector.${def.type}`)
   form.value.config.credentials = {}
+  form.value.config.settings = {}
   if (isGitLabConnector(def.type)) addGitLabProject()
   rssAuthHeaders.value = []
   step.value = 1
+}
+
+function fieldValue(field: ConnectorDef['fields'][number]) {
+  const target = field.storage === 'settings' ? form.value.config.settings : form.value.config.credentials
+  return target[field.key]
+}
+
+function setFieldValue(field: ConnectorDef['fields'][number], value: unknown) {
+  const target = field.storage === 'settings' ? form.value.config.settings : form.value.config.credentials
+  target[field.key] = value
+}
+
+function fieldLabel(field: ConnectorDef['fields'][number]) {
+  return field.label || t(field.labelKey)
 }
 
 // --- Test connection (stateless, no DB write) ---
@@ -780,8 +851,8 @@ async function testConnection() {
     const fields = currentDef.value?.fields || []
     for (const f of fields) {
       if (f.optional || f.fieldType === 'custom_headers') continue
-      if (!form.value.config.credentials[f.key]) {
-        MessagePlugin.warning(`${t(f.labelKey)} ${t('datasource.isRequired')}`)
+      if (!fieldValue(f)) {
+        MessagePlugin.warning(`${fieldLabel(f)} ${t('datasource.isRequired')}`)
         return
       }
     }
@@ -976,8 +1047,8 @@ function validateStep1Fields(): boolean {
   const fields = currentDef.value?.fields || []
   for (const f of fields) {
     if (f.optional || f.fieldType === 'custom_headers') continue
-    if (!form.value.config.credentials[f.key]) {
-      MessagePlugin.warning(`${t(f.labelKey)} ${t('datasource.isRequired')}`)
+    if (!fieldValue(f)) {
+      MessagePlugin.warning(`${fieldLabel(f)} ${t('datasource.isRequired')}`)
       return false
     }
   }
@@ -1307,10 +1378,10 @@ const drawerConfirmText = computed(() => {
         >
           <div class="ds-type-header">
             <DataSourceTypeIcon :type="def.type" :size="20" />
-            <span class="ds-type-name">{{ t(`datasource.connector.${def.type}`) }}</span>
+            <span class="ds-type-name">{{ def.displayName || t(`datasource.connector.${def.type}`) }}</span>
             <span v-if="!def.available" class="ds-type-soon">{{ t('datasource.comingSoon') }}</span>
           </div>
-          <div class="ds-type-desc">{{ t(`datasource.connectorDesc.${def.type}`) }}</div>
+          <div class="ds-type-desc">{{ def.description || t(`datasource.connectorDesc.${def.type}`) }}</div>
         </button>
       </div>
     </section>
@@ -1487,7 +1558,7 @@ const drawerConfirmText = computed(() => {
           >
             <template v-if="field.fieldType === 'custom_headers'">
               <div class="custom-headers-header">
-                <label class="form-label" style="margin-bottom: 0;">{{ t(field.labelKey) }}</label>
+                <label class="form-label" style="margin-bottom: 0;">{{ fieldLabel(field) }}</label>
                 <t-button variant="text" size="small" theme="primary" @click="addRssAuthHeader">
                   <template #icon><t-icon name="add" /></template>
                   {{ t('model.editor.customHeadersAdd') }}
@@ -1525,11 +1596,12 @@ const drawerConfirmText = computed(() => {
             </template>
             <template v-else>
               <label class="form-label" :class="{ required: !field.optional }">
-                {{ t(field.labelKey) }}
+                {{ fieldLabel(field) }}
               </label>
               <t-textarea
                 v-if="field.multiline"
-                v-model="form.config.credentials[field.key]"
+                :model-value="fieldValue(field)"
+                @update:model-value="setFieldValue(field, $event)"
                 :placeholder="field.placeholder || t('credential.inputPlaceholder')"
                 :autosize="{ minRows: 2, maxRows: 6 }"
                 autocomplete="off"
@@ -1537,7 +1609,8 @@ const drawerConfirmText = computed(() => {
               />
               <t-input
                 v-else
-                v-model="form.config.credentials[field.key]"
+                :model-value="fieldValue(field)"
+                @update:model-value="setFieldValue(field, $event)"
                 :placeholder="field.placeholder || t('credential.inputPlaceholder')"
                 :type="field.secret ? 'password' : 'text'"
                 autocomplete="off"
@@ -1546,6 +1619,7 @@ const drawerConfirmText = computed(() => {
                 <template v-if="field.secret" #prefix-icon><t-icon name="lock-on" /></template>
               </t-input>
               <p v-if="field.hintKey" class="form-desc">{{ t(field.hintKey) }}</p>
+              <p v-else-if="field.hint" class="form-desc">{{ field.hint }}</p>
             </template>
           </div>
           <div v-if="isEdit && replaceCredentialsMode" class="credential-edit-actions">

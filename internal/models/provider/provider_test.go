@@ -1,12 +1,20 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type externalTestProvider struct{ name ProviderName }
+
+func (p externalTestProvider) Info() ProviderInfo {
+	return ProviderInfo{Name: p.name, DisplayName: "External Test", ModelTypes: []types.ModelType{types.ModelTypeKnowledgeQA}}
+}
+func (externalTestProvider) ValidateConfig(*Config) error { return nil }
 
 func TestProviderRegistry(t *testing.T) {
 	// Test that all default providers are registered
@@ -28,6 +36,20 @@ func TestProviderRegistry(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, ProviderGeneric, p.Info().Name)
 	})
+}
+
+func TestExternalProviderLifecycle(t *testing.T) {
+	name := ProviderName(fmt.Sprintf("external_test_%s", t.Name()))
+	p := externalTestProvider{name: name}
+	require.NoError(t, RegisterExternal(p))
+	t.Cleanup(func() { _ = UnregisterExternal(name) })
+	registered, ok := GetExternal(name)
+	require.True(t, ok)
+	require.Equal(t, name, registered.Info().Name)
+	require.Error(t, RegisterExternal(p))
+	require.NoError(t, UnregisterExternal(name))
+	_, ok = Get(name)
+	require.False(t, ok)
 }
 
 func TestDetectProvider(t *testing.T) {

@@ -19,6 +19,22 @@ func TestRetrieverEngineMappingIncludesTencentVectorDBHybridCapabilities(t *test
 	})
 }
 
+func TestExternalRetrieverEngineParticipatesInDefaultRouting(t *testing.T) {
+	engineType := RetrieverEngineType("test_external_retriever")
+	UnregisterExternalRetrieverEngine(engineType)
+	t.Cleanup(func() { UnregisterExternalRetrieverEngine(engineType) })
+
+	assert.NoError(t, RegisterExternalRetrieverEngine(engineType, []RetrieverType{KeywordsRetrieverType, VectorRetrieverType}))
+	assert.Error(t, RegisterExternalRetrieverEngine(engineType, []RetrieverType{KeywordsRetrieverType}))
+	t.Setenv("RETRIEVE_DRIVER", string(engineType))
+
+	assert.Equal(t, []RetrieverEngineParams{
+		{RetrieverType: KeywordsRetrieverType, RetrieverEngineType: engineType},
+		{RetrieverType: VectorRetrieverType, RetrieverEngineType: engineType},
+	}, GetDefaultRetrieverEngines())
+	assert.Contains(t, GetRetrieverEngineMapping(), string(engineType))
+}
+
 func TestResolveMinerUParseMethod(t *testing.T) {
 	trueValue := true
 	falseValue := false

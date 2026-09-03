@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/utils"
@@ -56,10 +57,51 @@ var retrieverEngineMapping = map[string][]RetrieverEngineParams{
 	},
 }
 
+var (
+	externalRetrieverMu            sync.RWMutex
+	externalRetrieverEngineMapping = make(map[string][]RetrieverEngineParams)
+)
+
+// RegisterExternalRetrieverEngine exposes a plugin engine to the same
+// RETRIEVE_DRIVER selection path as built-ins. The runtime itself owns its
+// connection config, so this does not add it to the DB vector-store form.
+func RegisterExternalRetrieverEngine(engineType RetrieverEngineType, support []RetrieverType) error {
+	key := string(engineType)
+	if _, builtIn := retrieverEngineMapping[key]; builtIn {
+		return fmt.Errorf("retriever driver %s is already built in", key)
+	}
+	externalRetrieverMu.Lock()
+	defer externalRetrieverMu.Unlock()
+	if _, exists := externalRetrieverEngineMapping[key]; exists {
+		return fmt.Errorf("retriever driver %s is already registered", key)
+	}
+	params := make([]RetrieverEngineParams, 0, len(support))
+	for _, mode := range support {
+		params = append(params, RetrieverEngineParams{RetrieverType: mode, RetrieverEngineType: engineType})
+	}
+	externalRetrieverEngineMapping[key] = params
+	return nil
+}
+
+func UnregisterExternalRetrieverEngine(engineType RetrieverEngineType) {
+	externalRetrieverMu.Lock()
+	delete(externalRetrieverEngineMapping, string(engineType))
+	externalRetrieverMu.Unlock()
+}
+
 // GetRetrieverEngineMapping returns the retriever engine mapping
 // This allows other packages to access the driver capabilities
 func GetRetrieverEngineMapping() map[string][]RetrieverEngineParams {
-	return retrieverEngineMapping
+	result := make(map[string][]RetrieverEngineParams, len(retrieverEngineMapping))
+	for key, values := range retrieverEngineMapping {
+		result[key] = append([]RetrieverEngineParams(nil), values...)
+	}
+	externalRetrieverMu.RLock()
+	defer externalRetrieverMu.RUnlock()
+	for key, values := range externalRetrieverEngineMapping {
+		result[key] = append([]RetrieverEngineParams(nil), values...)
+	}
+	return result
 }
 
 // GetDefaultRetrieverEngines returns the default retriever engines based on RETRIEVE_DRIVER env
@@ -69,7 +111,13 @@ func GetDefaultRetrieverEngines() []RetrieverEngineParams {
 
 	for _, driver := range strings.Split(os.Getenv("RETRIEVE_DRIVER"), ",") {
 		driver = strings.TrimSpace(driver)
-		if params, ok := retrieverEngineMapping[driver]; ok {
+		params, ok := retrieverEngineMapping[driver]
+		if !ok {
+			externalRetrieverMu.RLock()
+			params, ok = externalRetrieverEngineMapping[driver]
+			externalRetrieverMu.RUnlock()
+		}
+		if ok {
 			for _, p := range params {
 				key := string(p.RetrieverType) + ":" + string(p.RetrieverEngineType)
 				if !seen[key] {

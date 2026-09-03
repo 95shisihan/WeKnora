@@ -1,0 +1,17 @@
+#include <tunables/global>
+
+profile weknora-plugin-no-network flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # File visibility and writability are constrained independently by the
+  # container mount namespace and its read-only root filesystem.
+  file,
+
+  # The gRPC control plane is an AF_UNIX socket. Internet sockets are denied
+  # at syscall time and each denial is sent to the host kernel audit log.
+  network unix stream,
+  audit deny network inet,
+  audit deny network inet6,
+
+  signal (receive) peer=unconfined,
+}

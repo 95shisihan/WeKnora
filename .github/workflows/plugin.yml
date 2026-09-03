@@ -1,0 +1,100 @@
+name: Plugin framework
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugin/**"
+      - "examples/plugins/**"
+      - "deploy/apparmor/**"
+      - "internal/plugin/**"
+      - "internal/container/container.go"
+      - "internal/datasource/connector.go"
+      - "internal/infrastructure/docparser/engine_registry.go"
+      - "internal/infrastructure/web_search/registry.go"
+      - "internal/models/provider/provider.go"
+      - "internal/handler/plugin*.go"
+      - "internal/application/service/datasource_plugin_incremental_test.go"
+      - ".github/workflows/plugin.yml"
+  pull_request:
+    paths:
+      - "plugin/**"
+      - "examples/plugins/**"
+      - "deploy/apparmor/**"
+      - "internal/plugin/**"
+      - "internal/container/container.go"
+      - "internal/datasource/connector.go"
+      - "internal/infrastructure/docparser/engine_registry.go"
+      - "internal/infrastructure/web_search/registry.go"
+      - "internal/models/provider/provider.go"
+      - "internal/handler/plugin*.go"
+      - "internal/application/service/datasource_plugin_incremental_test.go"
+      - ".github/workflows/plugin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  contracts:
+    name: Contracts, examples, and standalone template
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install native test headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Test plugin host and examples
+        run: |
+          go test -count=1 \
+            ./internal/plugin/... \
+            ./plugin/proto \
+            ./examples/plugins/...
+          go test -count=1 ./internal/application/service \
+            -run '^TestPluginIncrementalSyncOnlyReprocessesChangedFile$'
+          go test -count=1 ./internal/container
+          go test -count=1 ./internal/handler -run '^TestPluginHandler'
+
+      - name: Build standalone Python template from its own context
+        run: |
+          docker build \
+            --file plugin/templates/datasource-python/Dockerfile \
+            --tag weknora/plugin-template-acceptance:ci \
+            plugin/templates/datasource-python
+
+      - name: Build OCI examples
+        run: |
+          docker build -f examples/plugins/local-directory/Dockerfile -t weknora/plugin-local-directory:ci .
+          docker build -f examples/plugins/mock-web-search/Dockerfile -t weknora/plugin-mock-web-search:ci .
+          docker build -f examples/plugins/plain-text-parser/Dockerfile -t weknora/plugin-plain-text-parser:ci .
+          docker build -f examples/plugins/mock-model-provider/Dockerfile -t weknora/plugin-mock-model-provider:ci .
+          docker build -f examples/plugins/memory-retrieval/Dockerfile -t weknora/plugin-memory-retrieval:ci .
+
+  apparmor-audit:
+    name: Real no-network denial and audit
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Require an AppArmor-enabled Docker host
+        run: |
+          sudo aa-status --enabled
+          docker info --format '{{json .SecurityOptions}}' | grep -q apparmor
+
+      - name: Install plugin no-network profile
+        run: sudo apparmor_parser -r deploy/apparmor/weknora-plugin-no-network
+
+      - name: Verify a real connect is denied and audited
+        run: sudo --preserve-env=PATH sh plugin/security-probe/verify-linux.sh

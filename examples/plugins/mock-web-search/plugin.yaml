@@ -1,0 +1,29 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.mock-search
+  name: Mock Web Search
+  version: 0.1.0
+  description: Deterministic web-search provider for plugin conformance tests.
+spec:
+  enabled: true
+  extensionPoints:
+    - type: web_search
+      id: mock_search
+      protocolVersion: v1
+      name: Mock Web Search
+      authType: none
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: oci
+    image: weknora/plugin-mock-web-search:0.1.0
+    startupTimeout: 15s
+    resources: {memoryBytes: 67108864, cpuLimit: 0.25, pidsLimit: 32}
+  configSchema:
+    type: object
+    properties: {}
+  permissions:
+    network: {outbound: false}
+    filesystem: {read: [], write: []}

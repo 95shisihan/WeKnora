@@ -19,6 +19,14 @@ type StoreRegistry interface {
 	UnregisterByStoreID(storeID string)
 }
 
+// ExternalRetrieveEngineRegistry is the lifecycle surface used by the plugin
+// manager. It deliberately excludes store-ID lookup so plugin administration
+// cannot bypass tenant ownership checks.
+type ExternalRetrieveEngineRegistry interface {
+	RegisterExternal(svc RetrieveEngineService) error
+	UnregisterExternal(engineType types.RetrieverEngineType) error
+}
+
 // EngineFactory creates a RetrieveEngineService from a VectorStore's config.
 // Defined as a function type to avoid circular imports between container and service packages.
 type EngineFactory func(ctx context.Context, store types.VectorStore) (RetrieveEngineService, error)
