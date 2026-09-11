@@ -1,0 +1,58 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: dev.example.feishu-wiki
+  name: Feishu Wiki (External Example)
+  version: 0.1.0
+  description: 飞书知识库 docx 正文同步，独立 Python 外部插件示例。
+spec:
+  enabled: true
+  extensionPoints:
+    - type: datasource
+      id: feishu_wiki_plugin
+      protocolVersion: v1
+      name: 飞书知识库（外部插件示例）
+      authType: api_key
+      capabilities: [incremental, deletion_sync]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: oci
+    image: example/weknora-feishu-wiki:0.1.0
+    startupTimeout: 30s
+    resources:
+      memoryBytes: 268435456
+      cpuLimit: 1
+      pidsLimit: 64
+  configSchema:
+    type: object
+    required: [app_id, app_secret, space_id]
+    properties:
+      app_id:
+        type: string
+        title: 飞书自建应用 App ID
+        writeOnly: true
+      app_secret:
+        type: string
+        title: 飞书自建应用 App Secret
+        writeOnly: true
+        format: password
+      space_id:
+        type: string
+        title: 知识空间 ID（不是页面 token）
+      wiki_base_url:
+        type: string
+        title: 飞书租户地址（可选，例如 https://company.feishu.cn）
+      sync_deletions:
+        type: string
+        title: 同步删除（填 true 开启，留空或 false 关闭）
+        description: 权限缩小也可能让文档不可见；仅在明确接受此语义时开启。
+        enum: ["false", "true"]
+        default: "false"
+  permissions:
+    network:
+      outbound: true
+    filesystem:
+      read: []
+      write: []

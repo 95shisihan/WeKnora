@@ -8,6 +8,8 @@ import {
   triggerSync,
   pauseDataSource,
   resumeDataSource,
+  getConnectorTypes,
+  type ConnectorMeta,
   type DataSource,
 } from '@/api/datasource'
 import { humanizeCron, relativeTime } from '@/utils/cronHumanize'
@@ -15,10 +17,11 @@ import DataSourceEditorDialog from './DataSourceEditorDialog.vue'
 import DataSourceSyncLogs from './DataSourceSyncLogs.vue'
 import DataSourceTypeIcon from './DataSourceTypeIcon.vue'
 import { useAuthStore } from '@/stores/auth'
+import { listPlugins, type PluginStatus } from '@/api/system'
 
 const props = defineProps<{ kbId: string }>()
 const emit = defineEmits<{ (e: 'count', value: number): void }>()
-const { t } = useI18n()
+const { t, te } = useI18n()
 const authStore = useAuthStore()
 
 // 后端 /datasource 的 list/logs 是 Viewer+，但所有写操作（POST/PUT/DELETE
@@ -27,6 +30,24 @@ const authStore = useAuthStore()
 const canManageDataSource = computed(() => authStore.hasRole('admin'))
 
 const dataSources = ref<DataSource[]>([])
+const connectors = ref<ConnectorMeta[]>([])
+const plugins = ref<PluginStatus[]>([])
+
+async function loadConnectorInfo() {
+  const results = await Promise.allSettled([
+    getConnectorTypes(),
+    authStore.isSystemAdmin ? listPlugins() : Promise.resolve([]),
+  ])
+  const types = results[0]
+  connectors.value = types.status === 'fulfilled' ? (types.value?.data || types.value || []) : []
+  const statuses = results[1]
+  plugins.value = statuses.status === 'fulfilled' ? statuses.value : []
+}
+
+function currentPlugin(type: string) {
+  const connector = connectors.value.find(item => item.type === type)
+  return plugins.value.find(item => item.plugin_id === connector?.plugin_id)
+}
 const loading = ref(false)
 const editorVisible = ref(false)
 const editingDs = ref<DataSource | null>(null)
@@ -134,7 +155,10 @@ function syncModeLabel(mode: string) {
 }
 
 function connectorLabel(type: string) {
-  return t(`datasource.connector.${type}`) || type
+  const connector = connectors.value.find(item => item.type === type)
+  if (connector?.source === 'external') return connector.name
+  const key = `datasource.connector.${type}`
+  return te(key) ? t(key) : (connector?.name || type)
 }
 
 function scheduleLabel(cron: string) {
@@ -177,7 +201,7 @@ function onEditorSaved() {
   loadList()
 }
 
-onMounted(loadList)
+onMounted(() => { void loadList(); void loadConnectorInfo() })
 onBeforeUnmount(stopPolling)
 </script>
 
@@ -281,6 +305,9 @@ onBeforeUnmount(stopPolling)
                 <span class="ds-status-dot" aria-hidden="true" />
                 {{ statusLabel(ds.status) }}
               </span>
+            </p>
+            <p v-if="currentPlugin(ds.type)" class="ds-card__detail">
+              {{ t('datasource.currentPluginVersion', { name: currentPlugin(ds.type)!.name, version: currentPlugin(ds.type)!.version }) }}
             </p>
             <p class="ds-card__detail">
               {{ scheduleLabel(ds.sync_schedule) }}

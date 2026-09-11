@@ -33,9 +33,6 @@ func LoadModelProvider(ctx context.Context, manifest *Manifest) (*LoadedModelPro
 	if point.Type != ExtensionModelProvider {
 		return nil, nil
 	}
-	if manifest.Spec.Runtime.Type == "grpc" && !manifest.Spec.Permissions.Network.Outbound {
-		return nil, fmt.Errorf("plugin %s declares outbound=false, but grpc TCP runtime cannot enforce it", manifest.Metadata.ID)
-	}
 	entry := &LoadedModelProvider{Manifest: manifest, Point: point}
 	runtime, err := startManagedRuntime(ctx, manifest)
 	if err != nil {

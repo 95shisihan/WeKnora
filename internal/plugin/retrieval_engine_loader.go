@@ -33,9 +33,6 @@ func LoadRetrievalEngine(ctx context.Context, manifest *Manifest) (*LoadedRetrie
 	if point.Type != ExtensionRetrievalEngine {
 		return nil, nil
 	}
-	if manifest.Spec.Runtime.Type == "grpc" && !manifest.Spec.Permissions.Network.Outbound {
-		return nil, fmt.Errorf("plugin %s declares outbound=false, but grpc TCP runtime cannot enforce it", manifest.Metadata.ID)
-	}
 	entry := &LoadedRetrievalEngine{Manifest: manifest, Point: point}
 	runtime, err := startManagedRuntime(ctx, manifest)
 	if err != nil {

@@ -871,10 +871,11 @@ async function testConnection() {
     } else {
       const creds = { ...form.value.config.credentials }
       if (form.value.type === 'rss') {
-        // validate-credentials is credentials-only; feed URLs live in settings.
+        // Keep the legacy credentials copy for older RSS backends; the request
+        // also sends the canonical non-secret settings map below.
         creds.feed_urls = form.value.config.settings.feed_urls
       }
-      await validateCredentials(form.value.type, creds)
+      await validateCredentials(form.value.type, creds, { ...form.value.config.settings })
     }
     testResult.value = 'success'
     MessagePlugin.success(t('datasource.testSuccess'))
@@ -887,7 +888,10 @@ async function testConnection() {
 }
 
 // --- Load resources ---
+const resourceLoadError = ref('')
+
 async function loadResources() {
+  resourceLoadError.value = ''
   loadingResources.value = true
   try {
     if (!tempDsId.value) {
@@ -933,7 +937,9 @@ async function loadResources() {
       if (hidden.length > 0) void revealExistingSelections(hidden)
     }
   } catch (e: any) {
-    MessagePlugin.error(e?.message || e?.error || t('datasource.resourceLoadFailed'))
+    resourceLoadError.value = e?.message || e?.error || t('datasource.resourceLoadFailed')
+    resources.value = []
+    MessagePlugin.error(resourceLoadError.value)
   }
   loadingResources.value = false
 }
@@ -1782,9 +1788,10 @@ const drawerConfirmText = computed(() => {
       </div>
       <div v-else class="ds-resource-empty">
         <t-icon name="info-circle" size="32px" style="color: var(--td-warning-color); margin-bottom: 8px;" />
-        <p class="ds-empty-title">{{ t('datasource.noResources') }}</p>
-        <p class="ds-empty-desc">{{ t(`datasource.noResourcesDesc_${form.type}`, t('datasource.noResourcesDesc')) }}</p>
-        <div class="ds-guide-steps">
+        <p class="ds-empty-title">{{ resourceLoadError ? t('datasource.resourceLoadFailed') : t('datasource.noResources') }}</p>
+        <p v-if="resourceLoadError" class="ds-empty-desc">{{ resourceLoadError }}</p>
+        <p v-else-if="!currentDef?.external" class="ds-empty-desc">{{ t(`datasource.noResourcesDesc_${form.type}`, t('datasource.noResourcesDesc')) }}</p>
+        <div v-if="!currentDef?.external && !resourceLoadError" class="ds-guide-steps">
           <div class="ds-guide-step">
             <span class="ds-guide-num">1</span>
             <span>{{ t(`datasource.guideStep1_${form.type}`, t('datasource.guideStep1')) }}</span>

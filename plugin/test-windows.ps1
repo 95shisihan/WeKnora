@@ -1,3 +1,4 @@
+param([switch]$HTTPOnly)
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -45,6 +46,9 @@ $env:CC = $gcc.Replace("\", "/")
 $env:CXX = $gxx.Replace("\", "/")
 $env:COMPILER_PATH = $compilerDir.FullName
 $env:Path = "$gccBin;$($compilerDir.FullName);$env:Path"
+# GCC's internal linker copy may not find its runtime DLLs on Windows.
+# Resolve the linker from the selected toolchain's bin directory explicitly.
+$linkFlags = "-extldflags=-B$($gccBin.Replace('\', '/'))/"
 # pg_query_go has a large generated C translation unit. A single compiler job
 # is slower but avoids resource stalls seen on Windows during a cold build.
 $env:GOMAXPROCS = "1"
@@ -67,10 +71,15 @@ if ($env:GOTMPDIR) {
 
 Push-Location $repoRoot
 try {
-    & $go test -count=1 ./internal/plugin/... ./plugin/proto ./examples/plugins/...
+    if ($HTTPOnly) {
+        & $go test -ldflags $linkFlags -count=1 -v ./internal/plugin ./internal/handler -run '^Test(HTTP|ArchiveCannotForgeHTTP|ControlledHTTP|WindowsNativeControlledHTTP|WindowsNativePythonPublic|PluginHandler)'
+        if ($LASTEXITCODE -ne 0) { throw 'Controlled HTTP host acceptance failed.' }
+        return
+    }
+    & $go test -ldflags $linkFlags -count=1 ./internal/plugin/... ./plugin/proto ./plugin/sdk/... ./examples/plugins/...
     if ($LASTEXITCODE -ne 0) { throw "Plugin contract tests failed." }
 
-    & $go test -count=1 ./internal/application/service `
+    & $go test -ldflags $linkFlags -count=1 ./internal/application/service `
         -run '^TestPluginIncrementalSyncOnlyReprocessesChangedFile$'
     if ($LASTEXITCODE -ne 0) { throw "Incremental datasource acceptance test failed." }
 

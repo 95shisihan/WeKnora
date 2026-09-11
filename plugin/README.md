@@ -4,6 +4,11 @@
 [`ADR-0001-out-of-process-plugin-runtime.md`](ADR-0001-out-of-process-plugin-runtime.md)，
 可执行验收状态见 [`ACCEPTANCE.md`](ACCEPTANCE.md)。
 
+需要访问公开 HTTP API 或链接的插件，请优先使用
+[受控 HTTP 开发指南](CONTROLLED-HTTP.md)：插件禁止直接联网，通过 SDK 调用宿主，
+由管理员批准域名和方法，由框架检查实际 IP、跳转和限额。Go/Python SDK、
+权限字段、编译制品交付及兼容性限制均在该指南中说明。
+
 本目录定义 WeKnora 与主仓外插件之间的稳定边界。当前已接通的扩展点是
 `datasource/v1`、`web_search/v1`、`document_parser/v1`、受限的
 `model_provider/v1` 和 `retrieval_engine/v1`；插件可以使用任意支持 gRPC 的语言实现，不能导入
@@ -35,6 +40,37 @@ plugins/
 
 任一步失败都会拒绝装载，不会留下一个看似存在但无法工作的 Connector。
 
+## 管理员上传安装
+
+系统管理员可在“设置 → 插件管理”上传 ZIP 包。普通用户看不到安装和启停入口，
+但能够在数据源列表中使用管理员已启用的数据源插件。ZIP 可以直接包含
+`plugin.yaml`，也可以多包一层目录；其余文件必须全部位于同一插件目录内。
+
+上传包必须是**构建完成的制品**，不能是源码工程：
+
+```text
+my-plugin.zip
+├── plugin.yaml
+├── bin/
+│   └── my-plugin.exe  # Windows；Linux/macOS 使用对应本机可执行文件
+└── assets/            # 可选运行资源
+```
+
+- `grpc` 插件必须声明 `runtime.command`，入口必须是与宿主操作系统匹配的
+  PE/ELF/Mach-O 本机可执行文件；脚本解释器入口不被接受；
+- `oci` 插件的 ZIP 只携带 Manifest 和必要资源，`runtime.image` 必须指向已经构建
+  好的容器镜像，宿主不会从上传包现场构建镜像；
+- `.go`、`.py`、`.js`、`.ts`、`.java`、`.rs`、Shell/PowerShell 等源码脚本，
+  以及 `Dockerfile`、`go.mod`、`package.json`、`requirements.txt` 等构建文件会被拒绝。
+
+上传接口为 `POST /api/v1/system/admin/plugins`，multipart 字段名为 `file`。
+服务端限制压缩包为 64 MiB、解压后为 256 MiB，并拒绝路径穿越、符号链接、
+特殊文件、源码/构建文件、非本机编译入口、重复插件 ID 和不兼容的 Manifest。
+校验完成后才会把目录原子移动到
+`WEKNORA_PLUGIN_INSTALL_DIR`（本地默认 `./data/plugins`，Docker Compose 默认
+持久化到 `/data/plugins`）。新安装插件先登记为停用，管理页再显式调用启用接口，
+避免半安装包被执行。
+
 ## Manifest
 
 参考 [本地目录示例](../examples/plugins/local-directory/plugin.yaml)。默认清单使用
@@ -51,8 +87,10 @@ plugins/
 
 v1alpha1 提供两种运行时：
 
-- `grpc`：开发模式，运行本地进程或连接已有 TCP 服务。由于无法给普通进程
-  强制设置网络命名空间，宿主会拒绝其 `network.outbound: false` 声明；
+- `grpc`：本地进程支持 TCP 或 `stdio://` 本地管道，也可连接已有 TCP 服务。
+  Windows amd64/arm64 的 `stdio://` 插件可声明 `network.outbound: false`，
+  由原生受限访问令牌执行禁网，子进程继承限制，无需容器。
+  TCP/外部服务模式仍拒绝不联网声明。详见 [Windows 原生插件](WINDOWS-NATIVE.md)；
 - `oci`：生产模式。宿主创建容器，通过只挂载于宿主和插件之间的 Unix Socket
   通信，不发布 TCP 端口。`outbound: false` 会同时应用 Docker `network=none`
   和 `weknora-plugin-no-network` AppArmor profile。根文件系统只读，声明的数据
@@ -272,6 +310,14 @@ docker build -f examples/plugins/memory-retrieval/Dockerfile \
 
 ## 可独立仓库模板
 
+没有飞书自建应用时，可使用[飞书公开链接导入](templates/feishu-wiki-python/PUBLIC_LINKS.md)，
+匿名导入指定公开页面的文字正文；它不自动遍历知识库，也不支持需登录或分页未完整加载的页面。
+
+真实软件接入教程见 [`templates/feishu-wiki-python`](templates/feishu-wiki-python/README.md)：
+它用飞书企业自建应用读取知识库 docx 正文，包含授权配置、独立构建、安装、
+资源子树选择、哈希增量、删除语义、真实 gRPC 测试和只读真实 API 联调脚本。
+可复制整个目录开发其他软件的数据源插件，无需依赖内置飞书连接器。
+
 [`templates/datasource-python`](templates/datasource-python) 是自包含模板，复制
 该目录到一个空仓库后即可构建。它拥有自己的 Proto、Python 依赖、服务实现和
 Dockerfile；构建上下文不引用 WeKnora 的 `go.mod`、`internal/` 或示例目录。
@@ -302,6 +348,7 @@ SystemAdmin 可以查询和控制当前进程中的插件：
 
 ```text
 GET  /api/v1/system/admin/plugins
+POST /api/v1/system/admin/plugins
 POST /api/v1/system/admin/plugins/:plugin_id/enable
 POST /api/v1/system/admin/plugins/:plugin_id/disable
 ```

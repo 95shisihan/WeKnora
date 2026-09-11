@@ -798,6 +798,45 @@ export default {
       UNKNOWN_SUGGESTION: 'Check the application logs for details.'
     }
   },
+  pluginSettings: {
+    upgrade: 'Upgrade plugin',
+    upgradeStopFirst: 'Turn off this plugin first, then upload the new ZIP using Upgrade plugin.',
+    upgradeZipLimit: 'Choose a compiled plugin ZIP up to 64 MB.',
+    upgradeConfirm: 'Upload {file} for {name} (currently v{version}). The plugin ID must match, the version must be newer, and the configuration schema must remain unchanged. Data sources using the old default name will be renamed; custom names and sync data are preserved. The plugin stays disabled until you enable it and review its permissions.',
+    upgradeSuccess: 'Upgraded to v{version}; renamed {count} data sources. Enable the plugin and review its new permissions.',
+    upgradeFailed: 'Plugin upgrade failed',
+    directNetwork: 'Direct network access (not restricted by HTTP rules)',
+    controlledNetwork: 'Controlled HTTPS; direct networking blocked',
+    noNetwork: 'Networking blocked',
+    installedReview: 'Installed and disabled. Review HTTP permissions before enabling.',
+    approveTitle: 'Approve plugin HTTP permissions',
+    approveBody: 'Allow {name} to request {rules}? HTTPS/443 only; up to {redirects} redirects, {seconds} seconds, {requestBytes} request bytes and {bytes} response bytes. Private IPs are blocked. Approval applies to all users of this plugin.',
+    navLabel: 'Plugins',
+    title: 'Plugin management',
+    description: 'Upload and manage compiled platform-wide plugins. Enabled data source plugins become available in every user’s data source list.',
+    upload: 'Upload compiled plugin',
+    securityNote: 'Only compiled executables or manifests for prebuilt OCI images are accepted; source code, scripts, and build files are rejected. Only system administrators can install or change plugin state.',
+    loading: 'Loading plugins…',
+    empty: 'No plugins found',
+    builtin: 'Built-in',
+    custom: 'Custom',
+    zipOnly: 'Select a plugin package in ZIP format',
+    loadFailed: 'Failed to load plugins',
+    installFailed: 'Failed to install plugin',
+    installSuccess: 'Plugin “{name}” was installed and enabled',
+    enableAfterInstallFailed: 'The plugin was installed but could not start. Review the error and retry.',
+    enableSuccess: 'Plugin enabled',
+    disableSuccess: 'Plugin disabled',
+    changeFailed: 'Failed to update plugin state',
+    states: {
+      disabled: 'Disabled',
+      starting: 'Starting',
+      healthy: 'Running',
+      unhealthy: 'Unhealthy',
+      stopped: 'Stopped',
+      ignored: 'Unsupported'
+    }
+  },
   agent: {
     taskLabel: 'Task:',
     think: 'Thinking',
@@ -5775,6 +5814,7 @@ export default {
     daysAgo: '{days} days ago'
   },
   datasource: {
+    currentPluginVersion: 'Current plugin: {name} · v{version}',
     title: 'Data Sources',
     description: 'Configure external data sources to sync content into this knowledge base',
     add: 'Add Data Source',

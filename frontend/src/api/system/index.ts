@@ -1,6 +1,45 @@
 import { get, post, put, del, patch, postUpload } from '@/utils/request'
 import type { CreatedTenantAPIKey, TenantAPIKey, TenantAPIKeyCapability } from '@/api/tenant'
 
+export type PluginState = 'disabled' | 'starting' | 'healthy' | 'unhealthy' | 'stopped' | 'ignored'
+
+export interface PluginStatus {
+	 network?: { outbound: boolean; http?: { rules: { hosts: string[]; methods: string[] }[]; maxRedirects: number; timeoutSeconds: number; maxResponseBytes: number; maxRequestBytes: number } }
+	 http_policy_digest?: string
+	 http_approved?: boolean
+  plugin_id: string
+  name: string
+  version: string
+  extension_types: string[]
+  state: PluginState
+  last_error?: string
+  checked_at: string
+}
+
+export function listPlugins(): Promise<PluginStatus[]> {
+  return get('/api/v1/system/admin/plugins')
+}
+
+export function installPlugin(file: File): Promise<PluginStatus> {
+  const body = new FormData()
+  body.append('file', file)
+  return postUpload('/api/v1/system/admin/plugins', body)
+}
+
+export function upgradePlugin(pluginID: string, file: File): Promise<{ plugin: PluginStatus; renamed_data_sources: number }> {
+  const body = new FormData()
+  body.append('file', file)
+  return postUpload(`/api/v1/system/admin/plugins/${encodeURIComponent(pluginID)}/upgrade`, body)
+}
+
+export function enablePlugin(pluginID: string, digest?: string): Promise<PluginStatus> {
+  return post(`/api/v1/system/admin/plugins/${encodeURIComponent(pluginID)}/enable`, digest ? { http_policy_digest: digest } : undefined)
+}
+
+export function disablePlugin(pluginID: string): Promise<PluginStatus> {
+  return post(`/api/v1/system/admin/plugins/${encodeURIComponent(pluginID)}/disable`)
+}
+
 export interface CreatePlatformAPIKeyPayload {
   name: string
   capabilities: TenantAPIKeyCapability[]

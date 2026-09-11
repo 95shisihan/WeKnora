@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -75,6 +76,76 @@ func TestIncrementalFetchEmitsDeletion(t *testing.T) {
 	require.Len(t, items, 1)
 	require.True(t, items[0].GetIsDeleted())
 	require.Equal(t, "gone.txt", items[0].GetExternalId())
+}
+
+type interruptedFetchStream struct {
+	recordingFetchStream
+	checkpoint []byte
+	fail       func(*pluginproto.FetchEvent) bool
+}
+
+func (s *interruptedFetchStream) Send(event *pluginproto.FetchEvent) error {
+	if s.fail(event) {
+		return io.ErrUnexpectedEOF
+	}
+	if raw := event.GetCheckpointCursorJson(); len(raw) > 0 {
+		s.checkpoint = append([]byte(nil), raw...)
+	}
+	return s.recordingFetchStream.Send(event)
+}
+
+func TestIncrementalFetchResumesCheckpointWithoutLosingHistory(t *testing.T) {
+	for _, interruption := range []string{"after_checkpoint", "during_deletion", "before_final_cursor"} {
+		t.Run(interruption, func(t *testing.T) {
+			root := t.TempDir()
+			for i := 1; i <= 200; i++ {
+				require.NoError(t, os.WriteFile(filepath.Join(root, fmt.Sprintf("%03d.txt", i)), []byte(fmt.Sprintf("file %d", i)), 0o600))
+			}
+			deletedPath := filepath.Join(root, "gone.txt")
+			require.NoError(t, os.WriteFile(deletedPath, []byte("gone"), 0o600))
+			config, err := json.Marshal(dataSourceConfig{Settings: map[string]any{"root": root}})
+			require.NoError(t, err)
+			service := &server{}
+			initial := &recordingFetchStream{ctx: context.Background()}
+			require.NoError(t, service.Fetch(&pluginproto.FetchRequest{ConfigJson: config, Full: true}, initial))
+			initialCursor := finalCursor(t, initial.events)
+			// The 100th entry emits a checkpoint; the later update must retain
+			// its old hash until sent, and the deletion must remain discoverable.
+			for _, name := range []string{"100.txt", "150.txt"} {
+				require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte("changed "+name), 0o600))
+			}
+			require.NoError(t, os.Remove(deletedPath))
+			broken := &interruptedFetchStream{recordingFetchStream: recordingFetchStream{ctx: context.Background()}}
+			broken.fail = func(event *pluginproto.FetchEvent) bool {
+				switch interruption {
+				case "after_checkpoint":
+					return len(broken.checkpoint) > 0
+				case "during_deletion":
+					return event.GetItem() != nil && event.GetItem().GetIsDeleted()
+				default:
+					return len(event.GetFinalCursorJson()) > 0
+				}
+			}
+			err = service.Fetch(&pluginproto.FetchRequest{ConfigJson: config, CursorJson: initialCursor}, broken)
+			require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+			require.NotEmpty(t, broken.checkpoint)
+
+			resumed := &recordingFetchStream{ctx: context.Background()}
+			require.NoError(t, service.Fetch(&pluginproto.FetchRequest{ConfigJson: config, CursorJson: broken.checkpoint}, resumed))
+			items := fetchedItems(resumed.events)
+			// Only the update after the checkpoint and the pending deletion
+			// may replay. None of the unchanged files should be sent again.
+			require.Equal(t, 2, len(items))
+			require.Equal(t, "150.txt", items[0].GetExternalId())
+			require.Equal(t, []byte("changed 150.txt"), items[0].GetContent())
+			require.Equal(t, "gone.txt", items[1].GetExternalId())
+			require.True(t, items[1].GetIsDeleted())
+
+			settled := &recordingFetchStream{ctx: context.Background()}
+			require.NoError(t, service.Fetch(&pluginproto.FetchRequest{ConfigJson: config, CursorJson: finalCursor(t, resumed.events)}, settled))
+			require.Empty(t, fetchedItems(settled.events))
+		})
+	}
 }
 
 func TestGRPCRoundTrip(t *testing.T) {

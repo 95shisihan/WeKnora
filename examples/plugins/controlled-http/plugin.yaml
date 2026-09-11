@@ -1,0 +1,45 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.controlled-http
+  name: 受控 HTTP 连接示例
+  version: 0.1.0
+  description: 禁止直接联网，通过宿主受控 HTTP 测试公开链接；仅演示连接，不提供文档同步。
+spec:
+  enabled: true
+  extensionPoints:
+    - type: datasource
+      id: controlled_http
+      protocolVersion: v1
+      name: 受控 HTTP 连接示例
+      authType: none
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: grpc
+    address: stdio://
+    command: [bin/weknora-controlled-http.exe]
+    startupTimeout: 30s
+  configSchema:
+    type: object
+    required: [url]
+    properties:
+      url:
+        type: string
+        title: 公开链接
+        description: 示例允许 docs、www、xiaobot123 及官方访客入口；其他租户域名需管理员重新批准。
+  permissions:
+    network:
+      outbound: false
+      http:
+        rules:
+          - hosts: [docs.feishu.cn, www.feishu.cn, xiaobot123.feishu.cn, accounts.feishu.cn, login.feishu.cn]
+            methods: [GET]
+        maxRedirects: 5
+        timeoutSeconds: 20
+        maxResponseBytes: 2097152
+        maxRequestBytes: 1024
+    filesystem:
+      read: []
+      write: []

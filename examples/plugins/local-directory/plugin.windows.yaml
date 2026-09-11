@@ -1,0 +1,39 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.local-directory
+  name: Local Directory
+  version: 0.1.0
+  description: Native Windows directory plugin with OS-enforced no networking.
+spec:
+  enabled: true
+  extensionPoints:
+    - type: datasource
+      id: local_directory
+      protocolVersion: v1
+      name: Local Directory
+      priority: 20
+      authType: none
+      capabilities: [incremental, deletion_sync, hierarchical]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: grpc
+    address: stdio://
+    command: [bin/weknora-plugin-local-directory.exe]
+    startupTimeout: 15s
+  configSchema:
+    type: object
+    required: [root]
+    properties:
+      root:
+        type: string
+        title: Directory
+        description: Absolute local Windows directory to synchronize.
+  permissions:
+    network:
+      outbound: false
+    filesystem:
+      read: ["config:settings.root"]
+      write: []

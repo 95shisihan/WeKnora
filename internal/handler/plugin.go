@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"sync"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // PluginHandler exposes the process-wide plugin manager to system
@@ -22,6 +26,13 @@ type PluginHandler struct {
 	registry          *datasource.ConnectorRegistry
 	webSearchRegistry *infra_web_search.Registry
 	retrievalRegistry interfaces.ExternalRetrieveEngineRegistry
+	db                *gorm.DB
+}
+
+func NewPluginHandlerWithUpgrades(manager *pluginhost.Manager, registry *datasource.ConnectorRegistry, webSearchRegistry *infra_web_search.Registry, retrievalRegistry interfaces.ExternalRetrieveEngineRegistry, db *gorm.DB) *PluginHandler {
+	h := NewPluginHandler(manager, registry, webSearchRegistry, retrievalRegistry)
+	h.db = db
+	return h
 }
 
 func NewPluginHandler(manager *pluginhost.Manager, registry *datasource.ConnectorRegistry, webSearchRegistry *infra_web_search.Registry, retrievalRegistry interfaces.ExternalRetrieveEngineRegistry) *PluginHandler {
@@ -35,6 +46,53 @@ func (h *PluginHandler) List(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, h.manager.Statuses())
+}
+
+// Install accepts one administrator-supplied ZIP package. The router applies
+// the system-administrator guard before this handler is reached.
+func (h *PluginHandler) Install(c *gin.Context) {
+	if h == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "plugin manager is unavailable"})
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.manager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "plugin manager is unavailable"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, pluginhost.MaxPluginArchiveBytes+(1<<20))
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": fmt.Sprintf("plugin bundle cannot exceed %d MB", pluginhost.MaxPluginArchiveBytes>>20)})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+	defer func() { _ = file.Close() }()
+	if header.Size > pluginhost.MaxPluginArchiveBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": fmt.Sprintf("plugin bundle cannot exceed %d MB", pluginhost.MaxPluginArchiveBytes>>20)})
+		return
+	}
+	archive, err := io.ReadAll(io.LimitReader(file, pluginhost.MaxPluginArchiveBytes+1))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read plugin bundle"})
+		return
+	}
+	if int64(len(archive)) > pluginhost.MaxPluginArchiveBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": fmt.Sprintf("plugin bundle cannot exceed %d MB", pluginhost.MaxPluginArchiveBytes>>20)})
+		return
+	}
+	manifest, err := h.manager.InstallArchive(archive, pluginhost.DefaultInstallDir())
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	status, _ := h.manager.Status(manifest.Metadata.ID)
+	c.JSON(http.StatusCreated, status)
 }
 
 func (h *PluginHandler) Disable(c *gin.Context) {
@@ -59,11 +117,13 @@ func (h *PluginHandler) Disable(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "plugin is not running"})
 		return
 	}
-	for _, connectorType := range connectorTypes {
-		if err := h.registry.Unregister(connectorType); err != nil {
+	if len(connectorTypes) > 0 {
+		if err := h.registry.UnregisterAll(connectorTypes); err != nil {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 			return
 		}
+	}
+	for _, connectorType := range connectorTypes {
 		datasource.UnregisterConnectorMetadata(connectorType)
 	}
 	for _, providerType := range webSearchTypes {
@@ -101,6 +161,19 @@ func (h *PluginHandler) Enable(c *gin.Context) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	pluginID := c.Param("plugin_id")
+	if state, ok := h.manager.Status(pluginID); ok && state.HTTPPolicyDigest != "" && !state.HTTPApproved {
+		var approval struct {
+			Digest string `json:"http_policy_digest"`
+		}
+		if err := c.ShouldBindJSON(&approval); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "review and approve HTTP permissions before enabling"})
+			return
+		}
+		if err := h.manager.ApproveHTTP(pluginID, approval.Digest); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+	}
 	loaded, err := h.manager.Enable(c.Request.Context(), pluginID)
 	if err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})

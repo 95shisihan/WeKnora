@@ -10,6 +10,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	pluginproto "github.com/Tencent/WeKnora/plugin/proto"
+	"github.com/Tencent/WeKnora/plugin/sdk/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -27,13 +28,13 @@ type Connector struct {
 }
 
 func Dial(ctx context.Context, address, pluginID, version, engineName string) (*Connector, error) {
-	conn, err := grpc.NewClient(address,
+	conn, err := grpc.NewClient(address, append(transport.Options(address),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallSendMsgSize(maxDocumentMessageSize),
 			grpc.MaxCallRecvMsgSize(maxDocumentMessageSize),
 		),
-	)
+	)...)
 	if err != nil {
 		return nil, fmt.Errorf("dial document parser plugin %s: %w", pluginID, err)
 	}
@@ -42,12 +43,20 @@ func Dial(ctx context.Context, address, pluginID, version, engineName string) (*
 		_ = conn.Close()
 		return nil, err
 	}
+	if err := transport.AttachHostServices(ctx, address, conn); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("attach host HTTP: %w", err)
+	}
 	return connector, nil
 }
 
 func (c *Connector) Health(ctx context.Context) error {
-	if _, err := grpc_health_v1.NewHealthClient(c.conn).Check(ctx, &grpc_health_v1.HealthCheckRequest{}); err != nil {
+	healthResponse, err := grpc_health_v1.NewHealthClient(c.conn).Check(ctx, &grpc_health_v1.HealthCheckRequest{})
+	if err != nil {
 		return fmt.Errorf("plugin %s health check: %w", c.pluginID, err)
+	}
+	if healthResponse.GetStatus() != grpc_health_v1.HealthCheckResponse_SERVING {
+		return fmt.Errorf("plugin %s health check: status %s, expected SERVING", c.pluginID, healthResponse.GetStatus())
 	}
 	info, err := c.client.GetInfo(ctx, &pluginproto.DocumentParserInfoRequest{})
 	if err != nil {

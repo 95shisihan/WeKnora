@@ -1,5 +1,11 @@
 # WeKnora 扩展能力插件化框架：当前架构与实现说明
 
+> 2026-09-11 更新：管理员 ZIP 安装、插件管理页面及同 ID 兼容升级已实现，见 [插件升级](../plugin/UPGRADES.md)。飞书公开链接在运行中的 Windows Lite 应用完成了导入、解析、摘要、检索和无重复增量同步的 API 验收，见 [验收矩阵](../plugin/ACCEPTANCE.md)。下文 2026-09-02 的生产式独立仓库 OCI 验收缺口仍保留，不能与这次 Windows API 验收混为一谈。`artifacts/` 中的日志和安装包是本地生成产物，不纳入源码仓库。
+
+> 2026-09-10 受控 HTTP 更新：新增通用 `network.http` 权限、管理员摘要批准、宿主 HTTPS 执行模块和复用原连接的双向通道，提供 Go/Python SDK。插件继续禁止直接联网。域名、DNS/IP、每次跳转和限额由宿主检查。实际 Windows 受限 EXE 已通过飞书公开链接读取、未批准目标拒绝和重新启用验收；旧 `outbound: true` 插件仍不受该能力保护。详见[受控 HTTP 指南](../plugin/CONTROLLED-HTTP.md)。
+
+> 2026-09-10 更新：Windows 已新增原生受限进程 + `stdio://` gRPC 管道运行方式，无需容器。真实进程的禁网、子进程限制、全量/单文件增量同步和 Manager 启停已在本机通过。WFP 拒绝事件作为补充审计；当前账户缺少读取权限，真实事件日志尚未在本机验证。配置和复现步骤见 [Windows 原生插件](../plugin/WINDOWS-NATIVE.md)。下文的 AppArmor 描述适用于原有 Linux OCI 路径。
+
 > 审计日期：2026-09-02  
 > 审计对象：当前工作树（包含尚未提交的插件化改动），不是仅指远端 `main` 现状。  
 > 结论依据：源码走查、仓库文档、`plugin/test-windows.ps1` 本机实测。
@@ -13,7 +19,7 @@
 | 验收项 | 当前判断 | 证据与边界 |
 | --- | --- | --- |
 | 主仓外插件无需改主仓即可装载并同步 | 基本满足 | `Discover`/`LoadDirectories` 支持外部目录；真实子进程 gRPC 往返和自包含 Python 模板已有自动化测试。宿主侧同步已到 SQLite 落库和解析任务入队；尚没有把独立仓库镜像、真实解析 worker、Embedding 和索引全部串成一条生产 E2E 的证据。 |
-| 声明不联网时实际无法出站，且尝试被记录 | 条件满足，待 Linux 实跑确认 | OCI 使用 `network=none` 加 AppArmor `audit deny`；缺少 AppArmor 时 fail-closed。仓库有真实 `connect(2)` 探针和手动 CI job，但本次 Windows 审计不能执行 Linux 内核拒绝/审计。普通 TCP gRPC 进程不是安全边界，声明 `outbound: false` 会直接拒绝装载。 |
+| 声明不联网时实际无法出站，且尝试被记录 | Windows 原生禁网实测通过；补充审计待权限环境实测 | Windows `grpc + stdio://` 使用零网络能力的原生访问令牌，子进程继承限制；真实 TCP 拒绝、UDP 接收端无数据和管道同步已验证。WFP 订阅失败明确记录 `attempt_audit: false`，不能把策略应用日志冒充违规日志。原有 OCI/AppArmor 的 Linux 验收状态不变。 |
 | 单文件变化只重处理该文件 | 满足，本机实测通过 | 示例以 `relative_path -> SHA-256` 保存游标；插件单测、gRPC 往返测试和宿主 `ProcessSync` + SQLite 集成测试均通过。 |
 | 他人仅依据文档实现最简插件 | 工程材料齐备，仍需第三方验证 | `plugin/README.md` 和自包含 `plugin/templates/datasource-python` 已提供；CI 从模板目录自身构建镜像。尚无真实第三方“只看文档复现”的记录。 |
 
@@ -69,10 +75,10 @@ flowchart LR
 
 没有采用单一 `Invoke(method, json)`，是因为它会把拼写、类型和协议错误推迟到线上请求阶段。当前实现只在“扩展自身天然开放”的位置保留 JSON，例如数据源的配置和游标、检索协议中的公开 SDK 请求体。
 
-### 3.4 为什么不用 Go `plugin`、stdio 或纯 TCP
+### 3.4 传输选择（含后续 stdio 扩展）
 
 - Go `plugin` 对 Go 版本、依赖图、OS、架构和 ABI 高度敏感，且与宿主同权限运行；
-- stdio 子进程需要自研分帧、流式传输、取消、健康检查和代码生成生态；
+- stdio 现在复用 HTTP/2 gRPC，Go listener 和 Python `StdioServer` 已提供流量控制、取消与健康检查；Windows 禁网插件使用该管道，不建立 TCP 回环监听；
 - 纯 TCP gRPC 无法同时做到控制通道可达和插件网络命名空间完全关闭，因此仅保留为开发模式；
 - WebAssembly 适合未来的确定性解析类插件，但当前对大型 SDK、原生库、流式客户端和受控文件系统的支持不如 OCI 普适。
 
@@ -141,11 +147,19 @@ Manifest 的 Go 模型位于 `internal/plugin/manifest.go`，API 版本为 `plug
 
 ```text
 GET  /api/v1/system/admin/plugins
+POST /api/v1/system/admin/plugins
 POST /api/v1/system/admin/plugins/:plugin_id/enable
 POST /api/v1/system/admin/plugins/:plugin_id/disable
 ```
 
-`internal/handler/plugin.go` 中的 `PluginHandler.List/Enable/Disable` 负责 Manager 与五个业务 Registry 之间的原子化编排；`rollbackEnable` 在部分注册失败时撤销已发布项并停止运行时。
+`POST /plugins` 仅允许系统管理员上传 ZIP 包。安装器在 64 MiB 压缩包、256 MiB
+解压体积和 2048 个条目的边界内校验路径穿越、符号链接、Manifest 兼容性及重复
+ID。上传包只接受编译制品：`grpc` 的 `runtime.command` 必须是匹配宿主操作系统的
+PE/ELF/Mach-O 可执行文件，`oci` 必须引用预构建镜像；源码、脚本和构建清单均被
+拒绝。校验成功后才原子落盘到 `WEKNORA_PLUGIN_INSTALL_DIR`。普通用户没有安装或启停
+权限，但启用后的数据源扩展会通过统一 Registry 出现在普通数据源列表中。
+
+`internal/handler/plugin.go` 中的 `PluginHandler.List/Install/Enable/Disable` 负责 Manager 与五个业务 Registry 之间的原子化编排；`rollbackEnable` 在部分注册失败时撤销已发布项并停止运行时。
 
 当前限制：管理员启停覆盖只存在于当前进程，重启后仍以 `plugin.yaml` 的 `spec.enabled` 为准。
 

@@ -3,13 +3,17 @@
 package plugin
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/plugin/httpbroker"
+	"github.com/Tencent/WeKnora/plugin/sdk/hosthttp"
 	"github.com/blang/semver/v4"
 	"gopkg.in/yaml.v3"
 )
@@ -29,6 +33,8 @@ var knownExtensionTypes = map[string]struct{}{
 	ExtensionDatasource: {}, ExtensionDocumentParser: {}, ExtensionWebSearch: {},
 	ExtensionModelProvider: {}, ExtensionRetrievalEngine: {},
 }
+
+var pluginIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type Manifest struct {
 	APIVersion string   `yaml:"apiVersion" json:"apiVersion"`
@@ -100,8 +106,38 @@ type Permissions struct {
 }
 
 type NetworkPermission struct {
-	Outbound bool     `yaml:"outbound" json:"outbound"`
-	Allow    []string `yaml:"allow,omitempty" json:"allow,omitempty"`
+	HTTP     *hosthttp.Policy `yaml:"http,omitempty" json:"http,omitempty"`
+	Outbound bool             `yaml:"outbound" json:"outbound"`
+	Allow    []string         `yaml:"allow,omitempty" json:"allow,omitempty"`
+}
+
+// Reject unknown HTTP fields rather than silently ignoring an intended
+// restriction such as paths/ports that this version cannot enforce.
+func (n *NetworkPermission) UnmarshalYAML(node *yaml.Node) error {
+	var raw struct {
+		Outbound bool      `yaml:"outbound"`
+		Allow    []string  `yaml:"allow"`
+		HTTP     yaml.Node `yaml:"http"`
+	}
+	if err := node.Decode(&raw); err != nil {
+		return err
+	}
+	n.Outbound, n.Allow, n.HTTP = raw.Outbound, raw.Allow, nil
+	if raw.HTTP.Kind == 0 || raw.HTTP.Tag == "!!null" {
+		return nil
+	}
+	encoded, err := yaml.Marshal(&raw.HTTP)
+	if err != nil {
+		return err
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(encoded))
+	decoder.KnownFields(true)
+	var policy hosthttp.Policy
+	if err := decoder.Decode(&policy); err != nil {
+		return fmt.Errorf("invalid controlled HTTP policy: %w", err)
+	}
+	n.HTTP = &policy
+	return nil
 }
 
 type FilesystemPermission struct {
@@ -131,6 +167,9 @@ func (m *Manifest) Validate(weknoraVersion string) error {
 	}
 	if strings.TrimSpace(m.Metadata.ID) == "" || strings.TrimSpace(m.Metadata.Name) == "" {
 		return fmt.Errorf("metadata.id and metadata.name are required")
+	}
+	if !pluginIDPattern.MatchString(m.Metadata.ID) {
+		return fmt.Errorf("metadata.id must contain only letters, digits, dots, underscores, and hyphens")
 	}
 	if _, err := semver.Parse(strings.TrimPrefix(m.Metadata.Version, "v")); err != nil {
 		return fmt.Errorf("metadata.version must be semantic: %w", err)
@@ -169,6 +208,9 @@ func (m *Manifest) Validate(weknoraVersion string) error {
 		if strings.TrimSpace(m.Spec.Runtime.Address) == "" {
 			return fmt.Errorf("runtime.address is required for grpc")
 		}
+		if m.Spec.Runtime.Address == "stdio://" && len(m.Spec.Runtime.Command) == 0 {
+			return fmt.Errorf("runtime.command is required for stdio transport")
+		}
 	case "oci":
 		if strings.TrimSpace(m.Spec.Runtime.Image) == "" {
 			return fmt.Errorf("runtime.image is required for oci")
@@ -195,6 +237,19 @@ func (m *Manifest) Validate(weknoraVersion string) error {
 	}
 	if len(m.Spec.Permissions.Network.Allow) > 0 {
 		return fmt.Errorf("network allowlists are not enforceable in v1alpha1")
+	}
+	if p := m.Spec.Permissions.Network.HTTP; p != nil {
+		if m.Spec.Permissions.Network.Outbound {
+			return fmt.Errorf("controlled HTTP requires network.outbound: false")
+		}
+		if m.Spec.Runtime.Type != "oci" && (m.Spec.Runtime.Address != "stdio://" || len(m.Spec.Runtime.Command) == 0) {
+			return fmt.Errorf("controlled HTTP requires an isolated stdio process or OCI runtime")
+		}
+		normalized, err := httpbroker.Normalize(*p)
+		if err != nil {
+			return err
+		}
+		m.Spec.Permissions.Network.HTTP = &normalized
 	}
 	if m.Spec.Runtime.StartupTimeoutText == "" {
 		m.Spec.Runtime.StartupTimeout = 10 * time.Second
@@ -249,6 +304,9 @@ func Discover(dirs []string, weknoraVersion string) ([]*Manifest, error) {
 			return nil, fmt.Errorf("scan plugin directory %s: %w", root, err)
 		}
 		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), ".") {
+				continue
+			}
 			var path string
 			if entry.IsDir() {
 				path = filepath.Join(root, entry.Name(), "plugin.yaml")

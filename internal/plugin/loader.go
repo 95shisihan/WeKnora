@@ -73,9 +73,8 @@ func (p *LoadedDatasource) Close() error {
 }
 
 // LoadDatasources starts and verifies all enabled datasource extensions. A
-// manifest declaring outbound=false is rejected on the v1alpha1 TCP runtime:
-// accepting it without a network namespace would promise isolation the host
-// cannot enforce. OCI/UDS plugins use the sandboxed runtime instead.
+// manifest declaring outbound=false is rejected on the TCP runtime. Native
+// Windows stdio and OCI/UDS use OS-enforced isolation in startManagedRuntime.
 func LoadDatasources(ctx context.Context, manifests []*Manifest) ([]*LoadedDatasource, error) {
 	var loaded []*LoadedDatasource
 	for _, manifest := range manifests {
@@ -85,10 +84,6 @@ func LoadDatasources(ctx context.Context, manifests []*Manifest) ([]*LoadedDatas
 		for _, point := range manifest.Spec.ExtensionPoints {
 			if point.Type != ExtensionDatasource {
 				continue
-			}
-			if manifest.Spec.Runtime.Type == "grpc" && !manifest.Spec.Permissions.Network.Outbound {
-				closeLoaded(loaded)
-				return nil, fmt.Errorf("plugin %s declares outbound=false, but grpc TCP runtime cannot enforce it", manifest.Metadata.ID)
 			}
 			entry, err := loadDatasource(ctx, manifest, point)
 			if err != nil {

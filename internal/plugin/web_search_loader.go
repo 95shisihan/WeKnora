@@ -113,9 +113,6 @@ func LoadWebSearch(ctx context.Context, manifest *Manifest) (*LoadedWebSearch, e
 	if point == nil {
 		return nil, nil
 	}
-	if manifest.Spec.Runtime.Type == "grpc" && !manifest.Spec.Permissions.Network.Outbound {
-		return nil, fmt.Errorf("plugin %s declares outbound=false, but grpc TCP runtime cannot enforce it", manifest.Metadata.ID)
-	}
 	entry := &LoadedWebSearch{Manifest: manifest, Point: *point}
 	runtime, err := startManagedRuntime(ctx, manifest)
 	if err != nil {

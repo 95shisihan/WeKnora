@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"math"
-	"net"
 	"os"
 	"slices"
 	"sort"
@@ -13,6 +12,7 @@ import (
 
 	pluginproto "github.com/Tencent/WeKnora/plugin/proto"
 	retrievalsdk "github.com/Tencent/WeKnora/plugin/sdk/retrieval"
+	"github.com/Tencent/WeKnora/plugin/sdk/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -235,12 +235,7 @@ func decode(value *wrapperspb.BytesValue, target any) error {
 
 func main() {
 	address := env("WEKNORA_PLUGIN_ADDRESS", "127.0.0.1:50105")
-	network, target := "tcp", address
-	if strings.HasPrefix(address, "unix://") {
-		network, target = "unix", strings.TrimPrefix(address, "unix://")
-		_ = os.Remove(target)
-	}
-	listener, err := net.Listen(network, target)
+	listener, err := transport.Listen(address)
 	if err != nil {
 		panic(err)
 	}

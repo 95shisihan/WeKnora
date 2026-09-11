@@ -552,6 +552,7 @@ export default {
     }
   },
   datasource: {
+    currentPluginVersion: '当前插件：{name} · v{version}',
     title: '数据源管理',
     description: '配置外部数据源，自动同步内容到知识库',
     add: '添加数据源',
@@ -5512,6 +5513,45 @@ export default {
       dataExtensions: '数据与扩展',
       systemAdministration: '系统管理',
       platform: '平台'
+    }
+  },
+  pluginSettings: {
+    upgrade: '升级插件',
+    upgradeStopFirst: '请先关闭该插件的启用开关，再点击升级插件上传新版 ZIP。',
+    upgradeZipLimit: '请选择不超过 64 MB 的编译插件 ZIP 包。',
+    upgradeConfirm: '将为「{name}」（当前 v{version}）上传 {file}。包内插件 ID 必须一致、版本必须更高，配置结构必须兼容。沿用旧默认名称的数据源将自动改名，自定义名称和同步数据保留。升级后保持停用，请重新启用并确认联网权限。',
+    upgradeSuccess: '已升级至 v{version}，自动更新了 {count} 个数据源名称。请启用插件并确认新版权限。',
+    upgradeFailed: '插件升级失败',
+    directNetwork: '可直接联网（不受受控 HTTP 规则限制）',
+    controlledNetwork: '受控 HTTPS，禁止直接联网',
+    noNetwork: '禁止联网',
+    installedReview: '已安装且未启用，请检查 HTTP 权限后启用。',
+    approveTitle: '批准插件 HTTP 权限',
+    approveBody: '允许插件“{name}”请求以下目标：{rules}？仅 HTTPS/443，最多跳转 {redirects} 次，总超时 {seconds} 秒，请求最多 {requestBytes} 字节，响应最多 {bytes} 字节。禁止访问内网 IP。此授权适用于该插件的所有使用者。',
+    navLabel: '插件管理',
+    title: '插件管理',
+    description: '上传并管理编译好的平台级插件。启用后的数据源插件会自动出现在所有用户的数据源列表中。',
+    upload: '上传编译插件',
+    securityNote: '只接受已编译的可执行文件或预构建 OCI 镜像 Manifest，不接受源码、脚本和构建文件。只有系统管理员可以安装和启停插件；普通用户只能使用管理员已启用的插件。',
+    loading: '正在加载插件…',
+    empty: '暂无插件',
+    builtin: '内置',
+    custom: '自定义',
+    zipOnly: '请选择 ZIP 格式的插件包',
+    loadFailed: '加载插件失败',
+    installFailed: '插件安装失败',
+    installSuccess: '插件「{name}」已安装并启用',
+    enableAfterInstallFailed: '插件已安装，但启动失败；可查看错误后重试',
+    enableSuccess: '插件已启用',
+    disableSuccess: '插件已停用',
+    changeFailed: '插件状态更新失败',
+    states: {
+      disabled: '已停用',
+      starting: '启动中',
+      healthy: '运行中',
+      unhealthy: '异常',
+      stopped: '已停止',
+      ignored: '不受支持'
     }
   },
   agent: {

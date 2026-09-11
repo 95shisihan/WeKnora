@@ -1,0 +1,14 @@
+syntax = "proto3";
+package weknora.hosthttp.v1;
+option go_package = "github.com/Tencent/WeKnora/plugin/proto;pluginproto";
+import "google/protobuf/wrappers.proto";
+
+// Implemented by the plugin SDK. The host initiates this stream over the
+// existing isolated control connection, then executes plugin requests.
+// Each BytesValue contains UTF-8 JSON with the Frame shape documented in
+// plugin/sdk/hosthttp/types.go. Binary bodies use JSON base64 encoding.
+// Both endpoints cap messages at 4 MiB. SDKs register the generic service,
+// so generated stubs are not required.
+service Channel {
+  rpc Open(stream google.protobuf.BytesValue) returns (stream google.protobuf.BytesValue);
+}

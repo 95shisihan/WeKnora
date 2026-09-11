@@ -552,6 +552,7 @@ export default {
     }
   },
   datasource: {
+    currentPluginVersion: 'Текущий плагин: {name} · v{version}',
     title: 'Источники данных',
     description: 'Настройте внешние источники данных для автоматической синхронизации контента',
     add: 'Добавить источник',
@@ -5510,6 +5511,45 @@ export default {
       dataExtensions: 'Данные и расширения',
       systemAdministration: 'Системное администрирование',
       platform: 'Платформа'
+    }
+  },
+  pluginSettings: {
+    upgrade: 'Обновить плагин',
+    upgradeStopFirst: 'Сначала выключите плагин, затем загрузите новый ZIP через кнопку обновления.',
+    upgradeZipLimit: 'Выберите ZIP с готовым плагином размером до 64 МБ.',
+    upgradeConfirm: 'Загрузить {file} для {name} (сейчас v{version}). ID и схема конфигурации должны совпадать, а версия должна быть новее. Старые стандартные имена источников обновятся; пользовательские имена и данные сохранятся. После обновления включите плагин и проверьте разрешения.',
+    upgradeSuccess: 'Обновлено до v{version}; переименовано источников: {count}. Включите плагин и проверьте разрешения.',
+    upgradeFailed: 'Не удалось обновить плагин',
+    directNetwork: 'Direct network access (not restricted by HTTP rules)',
+    controlledNetwork: 'Controlled HTTPS; direct networking blocked',
+    noNetwork: 'Networking blocked',
+    installedReview: 'Installed and disabled. Review HTTP permissions before enabling.',
+    approveTitle: 'Approve plugin HTTP permissions',
+    approveBody: 'Allow {name} to request {rules}? HTTPS/443 only; up to {redirects} redirects, {seconds} seconds, {requestBytes} request bytes and {bytes} response bytes. Private IPs are blocked. Approval applies to all users of this plugin.',
+    navLabel: 'Плагины',
+    title: 'Управление плагинами',
+    description: 'Загрузка и управление скомпилированными плагинами платформы. Включённые плагины источников данных доступны всем пользователям.',
+    upload: 'Загрузить готовый плагин',
+    securityNote: 'Принимаются только скомпилированные исполняемые файлы или манифесты готовых OCI-образов. Исходный код, скрипты и файлы сборки отклоняются. Устанавливать плагины могут только системные администраторы.',
+    loading: 'Загрузка плагинов…',
+    empty: 'Плагины не найдены',
+    builtin: 'Встроенный',
+    custom: 'Пользовательский',
+    zipOnly: 'Выберите пакет плагина в формате ZIP',
+    loadFailed: 'Не удалось загрузить плагины',
+    installFailed: 'Не удалось установить плагин',
+    installSuccess: 'Плагин «{name}» установлен и включён',
+    enableAfterInstallFailed: 'Плагин установлен, но не запустился. Проверьте ошибку и повторите попытку.',
+    enableSuccess: 'Плагин включён',
+    disableSuccess: 'Плагин выключен',
+    changeFailed: 'Не удалось изменить состояние плагина',
+    states: {
+      disabled: 'Выключен',
+      starting: 'Запускается',
+      healthy: 'Работает',
+      unhealthy: 'Ошибка',
+      stopped: 'Остановлен',
+      ignored: 'Не поддерживается'
     }
   },
   agent: {

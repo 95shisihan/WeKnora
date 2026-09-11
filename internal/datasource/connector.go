@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
@@ -98,6 +99,24 @@ type StreamingConnector interface {
 type ConnectorRegistry struct {
 	mu         sync.RWMutex
 	connectors map[string]Connector
+	active     map[string]int
+}
+
+// Acquire keeps a runtime registered until a validation or sync completes.
+// The returned release is safe to defer even when acquisition fails.
+func (r *ConnectorRegistry) Acquire(connectorType string) (Connector, func(), error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	connector, exists := r.connectors[connectorType]
+	if !exists {
+		return nil, func() {}, ErrConnectorNotFound
+	}
+	if r.active == nil {
+		r.active = make(map[string]int)
+	}
+	r.active[connectorType]++
+	var once sync.Once
+	return connector, func() { once.Do(func() { r.mu.Lock(); defer r.mu.Unlock(); r.active[connectorType]-- }) }, nil
 }
 
 // NewConnectorRegistry creates a new connector registry
@@ -149,12 +168,25 @@ func (r *ConnectorRegistry) List() []string {
 // Unregister atomically removes a connector so new syncs cannot acquire it.
 // A caller that owns the connector runtime may close it after this returns.
 func (r *ConnectorRegistry) Unregister(connectorType string) error {
+	return r.UnregisterAll([]string{connectorType})
+}
+
+// UnregisterAll avoids partially disabling a multi-connector plugin when one
+// of its connectors is busy. Acquisition and removal share the same lock.
+func (r *ConnectorRegistry) UnregisterAll(connectorTypes []string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, exists := r.connectors[connectorType]; !exists {
-		return ErrConnectorNotFound
+	for _, connectorType := range connectorTypes {
+		if _, exists := r.connectors[connectorType]; !exists {
+			return ErrConnectorNotFound
+		}
+		if r.active[connectorType] > 0 {
+			return fmt.Errorf("connector %s is busy; wait for synchronization or validation to finish", connectorType)
+		}
 	}
-	delete(r.connectors, connectorType)
+	for _, connectorType := range connectorTypes {
+		delete(r.connectors, connectorType)
+	}
 	return nil
 }
 

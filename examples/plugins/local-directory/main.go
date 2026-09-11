@@ -16,6 +16,7 @@ import (
 	"time"
 
 	pluginproto "github.com/Tencent/WeKnora/plugin/proto"
+	"github.com/Tencent/WeKnora/plugin/sdk/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -76,6 +77,10 @@ func main() {
 }
 
 func listen(address string) (net.Listener, func(), error) {
+	if address == "stdio://" {
+		listener := transport.StdioListener()
+		return listener, func() { _ = listener.Close() }, nil
+	}
 	if strings.HasPrefix(address, "unix://") {
 		socketPath := strings.TrimPrefix(address, "unix://")
 		if socketPath == "" {
@@ -199,6 +204,13 @@ func (*server) Fetch(request *pluginproto.FetchRequest, stream grpc.ServerStream
 		return status.Errorf(codes.Internal, "scan root: %v", err)
 	}
 	next := cursorContents{Files: make(map[string]string, len(snapshots))}
+	// A checkpoint is a recoverable history, not a partial current snapshot.
+	// Keep old hashes for files not yet sent and retain deletion candidates
+	// until the final cursor commits the complete scan and deletion pass.
+	checkpoint := cursorContents{Files: make(map[string]string, len(previous.Files))}
+	for path, hash := range previous.Files {
+		checkpoint.Files[path] = hash
+	}
 	for index, snapshot := range snapshots {
 		next.Files[snapshot.RelativePath] = snapshot.Hash
 		if previous.Files[snapshot.RelativePath] == snapshot.Hash {
@@ -216,8 +228,9 @@ func (*server) Fetch(request *pluginproto.FetchRequest, stream grpc.ServerStream
 		}}}); err != nil {
 			return err
 		}
+		checkpoint.Files[snapshot.RelativePath] = snapshot.Hash
 		if (index+1)%100 == 0 {
-			raw, _ := encodeCursor(next)
+			raw, _ := encodeCursor(checkpoint)
 			if err := stream.Send(&pluginproto.FetchEvent{Payload: &pluginproto.FetchEvent_CheckpointCursorJson{CheckpointCursorJson: raw}}); err != nil {
 				return err
 			}

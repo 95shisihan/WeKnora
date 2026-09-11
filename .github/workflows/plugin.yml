@@ -59,6 +59,7 @@ jobs:
           go test -count=1 \
             ./internal/plugin/... \
             ./plugin/proto \
+            ./plugin/sdk/... \
             ./examples/plugins/...
           go test -count=1 ./internal/application/service \
             -run '^TestPluginIncrementalSyncOnlyReprocessesChangedFile$'
@@ -72,6 +73,28 @@ jobs:
             --tag weknora/plugin-template-acceptance:ci \
             plugin/templates/datasource-python
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Test Python host HTTP SDK
+        run: |
+          python -m pip install grpcio==1.80.0 grpcio-health-checking==1.80.0 protobuf==6.33.6 h2==4.3.0
+          cd plugin/sdk/python
+          python -m unittest -v
+
+      - name: Test Python binary stdio interoperability
+        run: WEKNORA_PYTHON="$(command -v python)" go test -count=1 ./plugin/sdk/transport -run TestPythonStdioGRPC
+
+      - name: Test standalone Feishu plugin outside the checkout
+        run: |
+          cp -R plugin/templates/feishu-wiki-python "$RUNNER_TEMP/feishu-plugin"
+          cd "$RUNNER_TEMP/feishu-plugin"
+          python -m pip install -r requirements.txt
+          python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. datasource.proto
+          python -m unittest -v
+          docker build -t example/weknora-feishu-wiki:0.1.0 .
+
       - name: Build OCI examples
         run: |
           docker build -f examples/plugins/local-directory/Dockerfile -t weknora/plugin-local-directory:ci .
@@ -79,6 +102,20 @@ jobs:
           docker build -f examples/plugins/plain-text-parser/Dockerfile -t weknora/plugin-plain-text-parser:ci .
           docker build -f examples/plugins/mock-model-provider/Dockerfile -t weknora/plugin-mock-model-provider:ci .
           docker build -f examples/plugins/memory-retrieval/Dockerfile -t weknora/plugin-memory-retrieval:ci .
+
+  windows-native:
+    name: Native Windows pipes and no-network processes
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Test real native process isolation and directory sync
+        shell: pwsh
+        run: ./plugin/test-native-windows.ps1
 
   apparmor-audit:
     name: Real no-network denial and audit

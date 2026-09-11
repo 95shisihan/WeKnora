@@ -355,7 +355,8 @@ func (s *DataSourceService) ValidateConnection(ctx context.Context, dsID string)
 	}
 
 	// Get connector
-	connector, err := s.connectorRegistry.Get(ds.Type)
+	connector, release, err := s.connectorRegistry.Acquire(ds.Type)
+	defer release()
 	if err != nil {
 		return err
 	}
@@ -397,7 +398,8 @@ func (s *DataSourceService) ListAvailableResources(
 	}
 
 	// Get connector
-	connector, err := s.connectorRegistry.Get(ds.Type)
+	connector, release, err := s.connectorRegistry.Acquire(ds.Type)
+	defer release()
 	if err != nil {
 		return nil, err
 	}
@@ -432,7 +434,8 @@ func (s *DataSourceService) ResolveResourceAncestors(
 		return nil, err
 	}
 
-	connector, err := s.connectorRegistry.Get(ds.Type)
+	connector, release, err := s.connectorRegistry.Acquire(ds.Type)
+	defer release()
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +633,8 @@ func (s *DataSourceService) ProcessSync(ctx context.Context, task *asynq.Task) e
 	wasPaused := ds.Status == types.DataSourceStatusPaused
 
 	// Get connector
-	connector, err := s.connectorRegistry.Get(ds.Type)
+	connector, release, err := s.connectorRegistry.Acquire(ds.Type)
+	defer release()
 	if err != nil {
 		logger.Errorf(ctx, "connector not found: type=%s", ds.Type)
 		syncLog.Status = types.SyncLogStatusFailed
@@ -1192,15 +1196,17 @@ func allFetchedItemsFailedError(result *types.SyncResult) error {
 	return fmt.Errorf("all fetched items failed during sync (%d/%d): %s", result.Failed, result.Total, detail)
 }
 
-// ValidateCredentials tests connectivity using raw credentials without persisting anything.
-func (s *DataSourceService) ValidateCredentials(ctx context.Context, connectorType string, credentials map[string]interface{}) error {
-	connector, err := s.connectorRegistry.Get(connectorType)
+// ValidateCredentials tests connectivity using raw credentials and non-secret settings without persisting anything.
+func (s *DataSourceService) ValidateCredentials(ctx context.Context, connectorType string, credentials, settings map[string]interface{}) error {
+	connector, release, err := s.connectorRegistry.Acquire(connectorType)
+	defer release()
 	if err != nil {
 		return err
 	}
 	config := &types.DataSourceConfig{
 		Type:        connectorType,
 		Credentials: credentials,
+		Settings:    settings,
 	}
 	if err := connector.Validate(ctx, config); err != nil {
 		return err
@@ -1212,7 +1218,8 @@ func (s *DataSourceService) ValidateCredentials(ctx context.Context, connectorTy
 // Helper functions
 
 func (s *DataSourceService) validateDataSourceConfig(ctx context.Context, ds *types.DataSource) error {
-	connector, err := s.connectorRegistry.Get(ds.Type)
+	connector, release, err := s.connectorRegistry.Acquire(ds.Type)
+	defer release()
 	if err != nil {
 		return err
 	}

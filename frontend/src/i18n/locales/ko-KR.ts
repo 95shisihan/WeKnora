@@ -552,6 +552,7 @@ export default {
     }
   },
   datasource: {
+    currentPluginVersion: '현재 플러그인: {name} · v{version}',
     title: '데이터 소스 관리',
     description: '외부 데이터 소스를 구성하여 콘텐츠를 지식베이스에 자동 동기화',
     add: '데이터 소스 추가',
@@ -5510,6 +5511,45 @@ export default {
       dataExtensions: '데이터 및 확장',
       systemAdministration: '시스템 관리',
       platform: '플랫폼'
+    }
+  },
+  pluginSettings: {
+    upgrade: '플러그인 업그레이드',
+    upgradeStopFirst: '먼저 플러그인을 끈 다음 새 ZIP 파일을 업로드하세요.',
+    upgradeZipLimit: '64 MB 이하의 컴파일된 플러그인 ZIP을 선택하세요.',
+    upgradeConfirm: '{name}(현재 v{version})에 {file}을 업로드합니다. ID와 설정 스키마는 같고 버전은 더 높아야 합니다. 이전 기본 이름만 변경하며 사용자 지정 이름과 동기화 데이터는 보존합니다. 업그레이드 후 활성화하고 권한을 검토하세요.',
+    upgradeSuccess: 'v{version}으로 업그레이드하고 데이터 소스 {count}개의 이름을 변경했습니다. 활성화하고 권한을 검토하세요.',
+    upgradeFailed: '플러그인 업그레이드 실패',
+    directNetwork: 'Direct network access (not restricted by HTTP rules)',
+    controlledNetwork: 'Controlled HTTPS; direct networking blocked',
+    noNetwork: 'Networking blocked',
+    installedReview: 'Installed and disabled. Review HTTP permissions before enabling.',
+    approveTitle: 'Approve plugin HTTP permissions',
+    approveBody: 'Allow {name} to request {rules}? HTTPS/443 only; up to {redirects} redirects, {seconds} seconds, {requestBytes} request bytes and {bytes} response bytes. Private IPs are blocked. Approval applies to all users of this plugin.',
+    navLabel: '플러그인',
+    title: '플러그인 관리',
+    description: '컴파일된 플랫폼 플러그인을 업로드하고 관리합니다. 활성화된 데이터 소스 플러그인은 모든 사용자의 데이터 소스 목록에 표시됩니다.',
+    upload: '컴파일된 플러그인 업로드',
+    securityNote: '컴파일된 실행 파일 또는 사전 빌드된 OCI 이미지의 매니페스트만 허용됩니다. 소스 코드, 스크립트 및 빌드 파일은 거부됩니다. 시스템 관리자만 플러그인을 설치하거나 상태를 변경할 수 있습니다.',
+    loading: '플러그인 로딩 중…',
+    empty: '플러그인이 없습니다',
+    builtin: '기본 제공',
+    custom: '사용자 정의',
+    zipOnly: 'ZIP 형식의 플러그인 패키지를 선택하세요',
+    loadFailed: '플러그인을 불러오지 못했습니다',
+    installFailed: '플러그인을 설치하지 못했습니다',
+    installSuccess: '플러그인 “{name}”이 설치되고 활성화되었습니다',
+    enableAfterInstallFailed: '플러그인이 설치되었지만 시작할 수 없습니다. 오류를 확인한 후 다시 시도하세요.',
+    enableSuccess: '플러그인이 활성화되었습니다',
+    disableSuccess: '플러그인이 비활성화되었습니다',
+    changeFailed: '플러그인 상태를 변경하지 못했습니다',
+    states: {
+      disabled: '비활성화됨',
+      starting: '시작 중',
+      healthy: '실행 중',
+      unhealthy: '오류',
+      stopped: '중지됨',
+      ignored: '지원되지 않음'
     }
   },
   agent: {

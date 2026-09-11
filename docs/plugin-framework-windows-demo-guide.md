@@ -1,5 +1,7 @@
 # WeKnora 扩展能力插件化框架 Windows 演示手册
 
+> 2026-09-10 原生禁网更新：Windows 示例已提供 `examples/plugins/local-directory/plugin.windows.yaml`，使用本机进程与 `stdio://` 管道，不依赖容器。需更新宿主代码和插件二进制后再采用新清单；下文原有 TCP 演示配置本身不具备禁网保证。禁网、增量同步与补充审计的独立说明见 [Windows 原生插件](../plugin/WINDOWS-NATIVE.md)。
+
 > 适用课题：课题一——扩展能力插件化框架  
 > 演示环境：Windows PowerShell，WeKnora Lite 0.7.2-dev  
 > 项目目录：`E:\Tengxun_RAG\WeKnora`
@@ -42,11 +44,12 @@
 
 ### 1.3 当前前端边界
 
-当前已有统一插件启停和健康状态管理员 API，但还没有单独的“插件管理”前端页面。因此：
+当前已提供「设置 → 插件管理」前端页面及对应管理员 API：
 
 - 浏览器主演示覆盖插件动态注册、配置、连接、资源发现、首次同步和增量同步；
-- 统一启停通过自动化测试或管理员 API 作为补充证据；
-- 不要向评委声称页面中已有插件启停按钮。
+- 系统管理员可以上传编译 ZIP、查看状态、启停插件，并通过插件卡片上传兼容的新版本；
+- 申请受控 HTTP 的插件启用前需确认网络权限；普通用户只使用已启用的数据源插件；
+- 本文后面的目录演示保留开发流程，正式安装与升级分别见 `plugin/README.md` 和 `plugin/UPGRADES.md`。
 
 ## 2. 演示前注意事项
 
@@ -82,6 +85,25 @@ Windows plugin acceptance passed.
 - `internal/application/service` 为 `ok`；
 - 最终的 `Windows plugin acceptance passed.`。
 
+### 3.1 2026-09-03 本机前端实测记录
+
+以下结果不是预期值，而是在 `E:\Tengxun_RAG\WeKnora` 上按本手册完整点击得到的实际结果：
+
+- Windows 插件验收、宿主侧 SQLite 增量验收及前端 `vue-tsc` 均通过；
+- 后端健康接口返回 `{"status":"ok"}`；
+- 后端日志出现 `[Plugin] loaded datasource local_directory from io.weknora.local-directory`；
+- 前端“添加数据源”列表出现 `Local Directory`，与飞书、Notion、GitLab 等内置连接器位于同一页面；
+- Manifest 动态生成 `Directory` 输入框，填写绝对路径后“测试连接”显示“已连接 / 连接成功”；
+- 插件资源选择页列出 `alpha.txt`、`beta.txt`；
+- 第一次同步日志显示“成功 `+2`”；
+- 只把 `alpha.txt` 从 V1 改为 V2 后，第二次同步显示“成功 `~1`”；
+- 同步历史汇总为“2 总次数、2 成功、0 失败、3 同步条目”，两条记录分别为 `+2` 与 `~1`；
+- 知识列表中 Alpha 的更新时间为第二次同步时间，Beta 仍为第一次同步时间。
+
+实测同时发现并修复了两个 Windows/前端集成问题：本地启动脚本缺少 `CXX/COMPILER_PATH` 导致最终链接找不到 `g++`；创建态“测试连接”此前只发送凭据、不发送非敏感 `settings`，导致插件收不到 `settings.root`。修复后重新执行了完整 Windows 验收，并在浏览器中复测连接成功。
+
+本机当前配置的 Embedding 模型指向智谱云。受测试环境出站网络限制，知识记录的文档解析与分块已完成，但向量化请求失败并显示“解析失败”。这不影响数据源插件的发现、连接、资源枚举、落库和增量判定结果。正式演示若要让知识条目最终显示“解析成功”，须提前配置一个可达的 Embedding 模型，并在演示前用普通上传验证一次。
+
 ## 4. 阶段二：准备隔离的外部插件目录
 
 打开一个新的 PowerShell，执行以下完整代码块：
@@ -100,6 +122,14 @@ Copy-Item `
   ".\examples\plugins\local-directory\plugin.dev.yaml" `
   "$pluginDir\plugin.yaml" `
   -Force
+
+# Windows CreateProcess 需要清单中的命令名与 .exe 产物一致。
+$manifest = Get-Content "$pluginDir\plugin.yaml" -Raw
+$manifest = $manifest.Replace(
+  "bin/weknora-plugin-local-directory]",
+  "bin/weknora-plugin-local-directory.exe]"
+)
+Set-Content "$pluginDir\plugin.yaml" $manifest -Encoding UTF8
 
 Set-Content "$dataDir\alpha.txt" @(
   "插件化框架演示文档 Alpha"
@@ -151,14 +181,14 @@ $env:GOCACHE = "$PWD\.tools\gocache"
 $env:GOTMPDIR = "$PWD\.tools\gotmp"
 
 & "$env:GOROOT\bin\go.exe" build `
-  -o "$pluginDir\bin\weknora-plugin-local-directory" `
+  -o "$pluginDir\bin\weknora-plugin-local-directory.exe" `
   ".\examples\plugins\local-directory"
 
-Get-Item "$pluginDir\bin\weknora-plugin-local-directory" |
+Get-Item "$pluginDir\bin\weknora-plugin-local-directory.exe" |
   Select-Object FullName, Length, LastWriteTime
 ```
 
-预期结果：生成约十几 MB 的 `weknora-plugin-local-directory` 可执行文件。
+预期结果：生成约十几 MB 的 `weknora-plugin-local-directory.exe` 可执行文件，并且 Manifest 的 `runtime.command` 也以 `.exe` 结尾。
 
 如果提示 Go build cache 无权访问，确认已经执行了上述 `GOCACHE` 和 `GOTMPDIR` 设置，再重新执行构建命令。
 
@@ -565,7 +595,7 @@ Get-ChildItem "$demoRoot\plugins" -Recurse
 
 ```text
 plugins\local-directory\plugin.yaml
-plugins\local-directory\bin\weknora-plugin-local-directory
+plugins\local-directory\bin\weknora-plugin-local-directory.exe
 ```
 
 设置环境变量后必须在同一个 PowerShell 中重新启动后端。
@@ -575,10 +605,10 @@ plugins\local-directory\bin\weknora-plugin-local-directory
 检查输出文件名是否严格为：
 
 ```text
-weknora-plugin-local-directory
+weknora-plugin-local-directory.exe
 ```
 
-Manifest 中的命令是 `bin/weknora-plugin-local-directory`，不要手动改成其他文件名。
+Manifest 中的命令必须是 `bin/weknora-plugin-local-directory.exe`。Windows 下二进制和 Manifest 任一方缺少 `.exe` 都会导致进程启动失败；Linux 演示才使用无扩展名的命令。
 
 ### 18.3 端口 50101 被占用
 

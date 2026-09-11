@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,13 +24,16 @@ const (
 )
 
 type Status struct {
-	PluginID       string    `json:"plugin_id"`
-	Name           string    `json:"name"`
-	Version        string    `json:"version"`
-	ExtensionTypes []string  `json:"extension_types"`
-	State          State     `json:"state"`
-	LastError      string    `json:"last_error,omitempty"`
-	CheckedAt      time.Time `json:"checked_at"`
+	Network          *NetworkPermission `json:"network,omitempty"`
+	HTTPPolicyDigest string             `json:"http_policy_digest,omitempty"`
+	HTTPApproved     bool               `json:"http_approved,omitempty"`
+	PluginID         string             `json:"plugin_id"`
+	Name             string             `json:"name"`
+	Version          string             `json:"version"`
+	ExtensionTypes   []string           `json:"extension_types"`
+	State            State              `json:"state"`
+	LastError        string             `json:"last_error,omitempty"`
+	CheckedAt        time.Time          `json:"checked_at"`
 }
 
 type EnabledExtensions struct {
@@ -89,6 +95,76 @@ func (m *Manager) LoadDirectories(ctx context.Context, dirs []string) error {
 	return m.Load(ctx, manifests)
 }
 
+// InstallArchive safely persists an uploaded plugin package and registers its
+// manifest in the disabled state. Starting the plugin remains a separate
+// operation so callers can report installation and runtime failures clearly.
+func (m *Manager) InstallArchive(archive []byte, installRoot string) (*Manifest, error) {
+	m.opMu.Lock()
+	defer m.opMu.Unlock()
+
+	m.mu.RLock()
+	closed := m.closed
+	m.mu.RUnlock()
+	if closed {
+		return nil, fmt.Errorf("plugin manager is closed")
+	}
+	installRoot = strings.TrimSpace(installRoot)
+	if installRoot == "" {
+		return nil, fmt.Errorf("plugin install directory is not configured")
+	}
+	root, err := filepath.Abs(installRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve plugin install directory: %w", err)
+	}
+	if err := os.MkdirAll(root, 0o750); err != nil {
+		return nil, fmt.Errorf("create plugin install directory: %w", err)
+	}
+	stage, err := os.MkdirTemp(root, ".installing-")
+	if err != nil {
+		return nil, fmt.Errorf("create plugin staging directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(stage) }()
+	if err := unpackPluginArchive(archive, stage); err != nil {
+		return nil, err
+	}
+	manifest, err := LoadManifest(filepath.Join(stage, "plugin.yaml"), m.hostVersion)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateCompiledPluginArtifact(manifest); err != nil {
+		return nil, err
+	}
+
+	m.mu.RLock()
+	_, builtinExists := m.builtins[manifest.Metadata.ID]
+	_, manifestExists := m.manifests[manifest.Metadata.ID]
+	m.mu.RUnlock()
+	if builtinExists || manifestExists {
+		return nil, fmt.Errorf("plugin %s is already installed", manifest.Metadata.ID)
+	}
+	target := filepath.Join(root, manifest.Metadata.ID)
+	if _, err := os.Stat(target); err == nil {
+		return nil, fmt.Errorf("plugin %s already exists on disk", manifest.Metadata.ID)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("inspect plugin target: %w", err)
+	}
+	if err := os.Rename(stage, target); err != nil {
+		return nil, fmt.Errorf("commit plugin installation: %w", err)
+	}
+	manifest, err = LoadManifest(filepath.Join(target, "plugin.yaml"), m.hostVersion)
+	if err != nil {
+		_ = os.RemoveAll(target)
+		return nil, err
+	}
+	m.mu.Lock()
+	m.manifests[manifest.Metadata.ID] = manifest
+	m.mu.Unlock()
+	status := statusFromManifest(manifest)
+	status.State = StateDisabled
+	m.setStatus(status)
+	return manifest, nil
+}
+
 func (m *Manager) Load(ctx context.Context, manifests []*Manifest) error {
 	m.opMu.Lock()
 	defer m.opMu.Unlock()
@@ -110,7 +186,7 @@ func (m *Manager) Load(ctx context.Context, manifests []*Manifest) error {
 		m.manifests[manifest.Metadata.ID] = manifest
 		m.mu.Unlock()
 		status := statusFromManifest(manifest)
-		if !manifest.Enabled() {
+		if !manifest.Enabled() || !httpApproved(manifest) {
 			status.State = StateDisabled
 			m.setStatus(status)
 			continue
@@ -383,6 +459,9 @@ func (m *Manager) Enable(ctx context.Context, pluginID string) (*EnabledExtensio
 	}
 
 	copyManifest := *manifest
+	if !httpApproved(manifest) {
+		return nil, fmt.Errorf("HTTP permissions require administrator approval")
+	}
 	copySpec := manifest.Spec
 	enabled := true
 	copySpec.Enabled = &enabled
@@ -817,6 +896,7 @@ func statusFromManifest(manifest *Manifest) Status {
 		}
 	}
 	return Status{
+		Network: &manifest.Spec.Permissions.Network, HTTPPolicyDigest: httpPolicyDigest(manifest), HTTPApproved: httpApproved(manifest),
 		PluginID: manifest.Metadata.ID, Name: manifest.Metadata.Name,
 		Version: manifest.Metadata.Version, ExtensionTypes: types,
 	}

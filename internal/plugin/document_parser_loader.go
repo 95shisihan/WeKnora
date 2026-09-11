@@ -33,9 +33,6 @@ func LoadDocumentParser(ctx context.Context, manifest *Manifest) (*LoadedDocumen
 	if point.Type != ExtensionDocumentParser {
 		return nil, nil
 	}
-	if manifest.Spec.Runtime.Type == "grpc" && !manifest.Spec.Permissions.Network.Outbound {
-		return nil, fmt.Errorf("plugin %s declares outbound=false, but grpc TCP runtime cannot enforce it", manifest.Metadata.ID)
-	}
 	entry := &LoadedDocumentParser{Manifest: manifest, Point: point}
 	runtime, err := startManagedRuntime(ctx, manifest)
 	if err != nil {

@@ -448,7 +448,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 
 	// Data source handler
 	must(container.Provide(handler.NewDataSourceHandler))
-	must(container.Provide(handler.NewPluginHandler))
+	must(container.Provide(handler.NewPluginHandlerWithUpgrades))
 	// Wiki page handler
 	must(container.Provide(handler.NewWikiPageHandler))
 	// IM integration
@@ -1750,6 +1750,16 @@ func initConnectorRegistry(cleaner interfaces.ResourceCleaner, retrievalRegistry
 	}
 
 	pluginDirs := filepath.SplitList(os.Getenv("WEKNORA_PLUGIN_DIRS"))
+	installDir := pluginhost.DefaultInstallDir()
+	if info, err := os.Stat(installDir); err == nil && info.IsDir() {
+		installDir = filepath.Clean(installDir)
+		alreadyIncluded := slices.ContainsFunc(pluginDirs, func(dir string) bool {
+			return filepath.Clean(strings.TrimSpace(dir)) == installDir
+		})
+		if !alreadyIncluded {
+			pluginDirs = append(pluginDirs, installDir)
+		}
+	}
 	if len(pluginDirs) > 0 {
 		if err := pluginManager.LoadDirectories(context.Background(), pluginDirs); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("load external plugins: %w", err))

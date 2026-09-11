@@ -294,7 +294,7 @@ func (h *DataSourceHandler) ValidateConnection(c *gin.Context) {
 
 // ValidateCredentials godoc
 // @Summary Test connection with raw credentials (no persistence)
-// @Description Validate connectivity to an external data source using type + credentials
+// @Description Validate connectivity to an external data source using type + credentials + settings
 //
 //	without creating or updating any database records.
 //	Used by the frontend "Test Connection" button during data source creation.
@@ -317,13 +317,14 @@ func (h *DataSourceHandler) ValidateCredentials(c *gin.Context) {
 	var req struct {
 		Type        string                 `json:"type" binding:"required"`
 		Credentials map[string]interface{} `json:"credentials" binding:"required"`
+		Settings    map[string]interface{} `json:"settings"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: type and credentials are required"})
 		return
 	}
 
-	if err := h.service.ValidateCredentials(ctx, req.Type, req.Credentials); err != nil {
+	if err := h.service.ValidateCredentials(ctx, req.Type, req.Credentials, req.Settings); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
