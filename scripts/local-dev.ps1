@@ -3,7 +3,8 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status', 'build')]
     [string]$Action = 'start',
     [switch]$Rebuild,
-    [switch]$NoDocReader
+    [switch]$NoDocReader,
+    [string]$BuildOutput
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,6 +71,15 @@ function Set-LocalEnvironment {
     $env:GOMAXPROCS = '4'
     $env:CGO_ENABLED = '1'
     $env:CC = Join-Path $msysDir 'ucrt64\bin\gcc.exe'
+    $env:CXX = Join-Path $msysDir 'ucrt64\bin\g++.exe'
+    $compilerRoot = Join-Path $msysDir 'ucrt64\lib\gcc\x86_64-w64-mingw32'
+    $compilerDir = Get-ChildItem -LiteralPath $compilerRoot -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+    if ($compilerDir) {
+        $env:COMPILER_PATH = $compilerDir.FullName
+        $env:PATH = "$($compilerDir.FullName);$env:PATH"
+    }
     $env:CGO_CFLAGS = '-Wno-deprecated-declarations'
     $env:PKG_CONFIG_PATH = Join-Path $msysDir 'ucrt64\lib\pkgconfig'
     $env:npm_config_cache = Join-Path $toolsDir 'npm-cache'
@@ -78,10 +88,15 @@ function Set-LocalEnvironment {
     $env:VITE_DEV_PROXY_TARGET = 'http://127.0.0.1:8080'
     $env:PYTHONPATH = $projectRoot
     $env:OLLAMA_MODELS = Join-Path $toolsDir 'ollama-models'
+    # The host always discovers the installation directory. Preserve explicit
+    # external discovery paths so independent-plugin development still works.
+    if (-not $env:WEKNORA_PLUGIN_INSTALL_DIR) {
+        $env:WEKNORA_PLUGIN_INSTALL_DIR = Join-Path $projectRoot 'data\plugins'
+    }
 }
 
 function Ensure-Directories {
-    @($binDir, $runDir, $logDir, (Join-Path $projectRoot 'data'), (Join-Path $projectRoot 'data\files')) |
+    @($binDir, $runDir, $logDir, (Join-Path $projectRoot 'data'), (Join-Path $projectRoot 'data\files'), (Join-Path $projectRoot 'data\plugins')) |
         ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 }
 
@@ -95,7 +110,8 @@ function Build-Backend {
             '-X github.com/Tencent/WeKnora/internal/handler.Edition=lite ' +
             '-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'
         Write-Host 'Building Lite backend with the project-local Go and GCC...'
-        & $goExe build -tags sqlite_fts5 -ldflags $ldflags -o $backendExe ./cmd/server
+        $targetExe = if ($BuildOutput) { [System.IO.Path]::GetFullPath($BuildOutput) } else { $backendExe }
+        & $goExe build -tags sqlite_fts5 -ldflags $ldflags -o $targetExe ./cmd/server
         if ($LASTEXITCODE -ne 0) { throw "Go build failed with exit code $LASTEXITCODE" }
     }
     finally {
@@ -155,6 +171,14 @@ function Start-LoggedProcess(
 
     $stdout = Join-Path $logDir "$Name.out.log"
     $stderr = Join-Path $logDir "$Name.err.log"
+    if ($Name -eq 'frontend') {
+        $launcher = Join-Path $PSScriptRoot 'start-frontend.cjs'
+        $launchedId = & $Executable $launcher $WorkingDirectory $stdout $stderr @Arguments
+        if ($LASTEXITCODE -ne 0) { throw 'Frontend launcher failed.' }
+        $Table[$Name] = [int]$launchedId
+        Write-Host "Started $Name (PID $($Table[$Name])); logs: $stdout"
+        return
+    }
     $startParameters = @{
         FilePath               = $Executable
         WorkingDirectory       = $WorkingDirectory
@@ -184,9 +208,8 @@ function Start-Services {
 
     $nodeExe = Join-Path $nodeDir 'node.exe'
     $viteCli = Join-Path $projectRoot 'frontend\node_modules\vite\bin\vite.js'
-    # Use a dedicated fresh origin and force a clean Vite dependency graph.
-    # This avoids Edge reusing stale dev-module state from the old :5173 origin.
-    Start-LoggedProcess 'frontend' $nodeExe @($viteCli, '--host', '127.0.0.1', '--port', '5174', '--force') (Join-Path $projectRoot 'frontend') $table
+    # Reuse Vite's dependency cache and fail explicitly if the expected port is busy.
+    Start-LoggedProcess 'frontend' $nodeExe @($viteCli, '--host', '127.0.0.1', '--port', '5174', '--strictPort') (Join-Path $projectRoot 'frontend') $table
 
     if (-not $NoDocReader) {
         $pythonExe = Join-Path $pythonDir 'python.exe'

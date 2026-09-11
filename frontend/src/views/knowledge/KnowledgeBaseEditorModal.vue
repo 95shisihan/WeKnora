@@ -471,6 +471,7 @@ import { updateKBConfig, type KBModelConfigRequest } from '@/api/initialization'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { selectInitialModelId } from '@/utils/modelDefaults'
 import { copyWithToast } from '@/utils/clipboard'
+import { retryRead } from '@/utils/retry-read'
 import { useEditorResourcesStore } from '@/stores/editorResources'
 import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -823,8 +824,8 @@ const loadKBData = async (kbIdOverride?: string) => {
   loading.value = true
   try {
     const [kbInfo, filesResult] = await Promise.all([
-      getKnowledgeBaseById(kbId),
-      listKnowledgeFiles(kbId, { page: 1, page_size: 1 })
+      retryRead(() => getKnowledgeBaseById(kbId)),
+      retryRead(() => listKnowledgeFiles(kbId, { page: 1, page_size: 1 }))
     ])
     
     if (!kbInfo || !kbInfo.data) {

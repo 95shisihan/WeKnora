@@ -123,7 +123,12 @@ instance.interceptors.response.use(
     const originalRequest = error.config;
     
     if (!error.response) {
-      return Promise.reject({ message: t('error.networkError') });
+      return Promise.reject({
+        message: t('error.networkError'),
+        code: error.code,
+        method: originalRequest?.method,
+        url: originalRequest?.url?.split('?')[0],
+      });
     }
     
     // 公开接口（auto-setup / login / register / oidc）的 401 不走 refresh 逻辑，直接返回错误
