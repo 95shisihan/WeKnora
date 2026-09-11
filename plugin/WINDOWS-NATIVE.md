@@ -62,7 +62,9 @@ SDK 提供 Go stdio listener 和 Python `plugin/sdk/python/stdio_grpc.py` 的 `S
 
 正常关闭会清理身份和授权。宿主被强行结束时，Job Object 会终止插件，但临时身份及其 ACL 条目可能遗留；当前尚无崩溃后遗留身份回收器，不应把这一版本描述为完整桌面安全产品。
 
-## 审计是补充能力
+## 审计权限与实测证据
+
+2026-09-11 已通过管理员 WFP 真实验收：原生禁网测试收到父/子进程的四条公网 TCP 拒绝事件；宿主运行时测试收到带插件 ID 的两条 `plugin.network_denied` JSON 日志。见[原始记录、复现命令和范围](../docs/acceptance/windows-network-audit-2026-09-11.md)。普通权限进程仍可能无法订阅，不能将管理员验收结果当作普通部署已拥有审计权限。
 
 宿主启动时尝试订阅 Windows Filtering Platform 的拒绝事件，按系统提供的 package SID 关联到插件，包括它的子进程。收到真实拒绝事件后，输出 `plugin-security-audit` JSON 日志，动作为 `plugin.network_denied`，包含插件 ID、目标地址、端口、协议与应用路径。
 

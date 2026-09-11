@@ -1,0 +1,16 @@
+﻿=== RUN   TestWindowsNativeHelper
+--- PASS: TestWindowsNativeHelper (0.00s)
+=== RUN   TestWindowsNativeNoNetwork
+    process_windows_test.go:139: native pid=35732 sid=S-1-15-2-3785709336-3737105110-2329378615-2974969025-1592793779-845615057-3215164891 audit_available=true
+    process_windows_test.go:197: actual Windows denial: {"application":"\\device\\harddiskvolume3\\users\\lenovo\\appdata\\local\\temp\\testwindowsnativenonetwork1930400933\\001\\probe.exe","backend":"windows-wfp","event_type":3,"package_sid":"S-1-15-2-3785709336-3737105110-2329378615-2974969025-1592793779-845615057-3215164891","protocol":6,"remote_address":"1.1.1.1","remote_port":443}
+    process_windows_test.go:197: actual Windows denial: {"application":"\\device\\harddiskvolume3\\users\\lenovo\\appdata\\local\\temp\\testwindowsnativenonetwork1930400933\\001\\probe.exe","backend":"windows-wfp","event_type":3,"package_sid":"S-1-15-2-3785709336-3737105110-2329378615-2974969025-1592793779-845615057-3215164891","protocol":6,"remote_address":"2606:4700:4700::1111","remote_port":443}
+    process_windows_test.go:197: actual Windows denial: {"application":"\\device\\harddiskvolume3\\users\\lenovo\\appdata\\local\\temp\\testwindowsnativenonetwork1930400933\\001\\probe.exe","backend":"windows-wfp","event_type":3,"package_sid":"S-1-15-2-3785709336-3737105110-2329378615-2974969025-1592793779-845615057-3215164891","protocol":6,"remote_address":"1.1.1.1","remote_port":443}
+    process_windows_test.go:197: actual Windows denial: {"application":"\\device\\harddiskvolume3\\users\\lenovo\\appdata\\local\\temp\\testwindowsnativenonetwork1930400933\\001\\probe.exe","backend":"windows-wfp","event_type":3,"package_sid":"S-1-15-2-3785709336-3737105110-2329378615-2974969025-1592793779-845615057-3215164891","protocol":6,"remote_address":"2606:4700:4700::1111","remote_port":443}
+--- PASS: TestWindowsNativeNoNetwork (2.36s)
+=== RUN   TestWFPWin64Layout
+--- PASS: TestWFPWin64Layout (0.00s)
+=== RUN   TestConfigPermissionRequiresLocalAbsolutePath
+--- PASS: TestConfigPermissionRequiresLocalAbsolutePath (0.00s)
+=== RUN   TestPipeBytes
+--- PASS: TestPipeBytes (0.00s)
+PASS

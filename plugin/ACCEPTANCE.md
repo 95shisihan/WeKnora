@@ -3,6 +3,14 @@
 This file lists executable evidence rather than treating source presence as a
 passing acceptance test.
 
+2026-09-11 Windows denial audit acceptance: elevated native isolation tests
+received four real WFP CLASSIFY_DROP events for IPv4/IPv6 TCP attempts from a
+restricted process and its descendant. A separate production-runtime integration
+test asserted OS access denial plus two `plugin.network_denied` JSON records with
+the matching plugin ID, package SID, application, address, port and protocol.
+No production enforcement code changed. Ordinary-user WFP access remains a
+deployment limitation. See [committed raw evidence](../docs/acceptance/windows-network-audit-2026-09-11.md).
+
 2026-09-11 independent Windows repository acceptance: a sibling repository with
 its own Git history and fresh Python environment built a native plugin ZIP using
 only its own source. The unchanged running Lite host installed and enabled it
@@ -52,7 +60,7 @@ audit configuration returns Access Denied. Policy-applied logs explicitly carry
 | Standalone repository build | independent `WeKnora-LocalDirectory-Plugin` Git repository, fresh venv, vendored Proto/SDK, native EXE ZIP; template Docker context also self-contained | passed on Windows 2026-09-11; Linux Docker CI path separate |
 | Complete datasource sync | independent plugin installed through live Lite APIs; full, unchanged and single-file update sync; completed parsing/summary and content-checked hybrid/vector-only retrieval | passed on Windows 2026-09-11; Linux OCI E2E separate |
 | No outbound networking | OCI HostConfig unit test requires `network=none` and AppArmor | passing |
-| Blocked attempt is recorded | `plugin/security-probe/verify-linux.sh` performs a real connect and checks kernel audit; manual `apparmor-audit` workflow installs the profile and runs it | executable Linux acceptance job added; an AppArmor-enabled run is still required |
+| Blocked attempt is recorded | Windows native WFP events and `TestWindowsNativeRuntimeDenialAudit` production JSON sink assertions; Linux `plugin/security-probe/verify-linux.sh` checks kernel audit | passed on Windows with administrator WFP access 2026-09-11; ordinary-user audit remains unavailable; AppArmor-enabled Linux run still required |
 | One changed file only | `TestIncrementalFetchEmitsOnlyChangedFile`, gRPC round trip, and host `TestPluginIncrementalSyncOnlyReprocessesChangedFile` | passed on Windows: two persisted rows remain, only the changed row gets a new ID/hash, and file-save/parser-task counts rise by one |
 | Independent implementation from docs | self-contained Python template and README | template present; third-party reproduction pending |
 | Feishu Wiki external tutorial | `templates/feishu-wiki-python` contains its own Proto, API client, gRPC service, Dockerfile, Chinese tutorial and read-only live smoke script | 16 tests passed on Windows from a copied directory outside the checkout (2026-09-09); real Feishu credentials, OCI execution and host parser/index E2E remain pending |

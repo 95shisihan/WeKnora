@@ -1,0 +1,29 @@
+=== RUN   TestWindowsNativeRuntimeDenialAudit
+    native_audit_windows_test.go:62: actual runtime manifest:
+        apiVersion: plugins.weknora.io/v1alpha1
+        kind: Plugin
+        metadata:
+            id: io.weknora.windows-audit-probe
+            name: Windows audit probe
+            version: 0.1.0
+        spec:
+            extensionPoints:
+                - type: datasource
+                  id: windows_audit_probe
+                  protocolVersion: v1
+            compatibility:
+                weknora: ""
+                pluginAPI: ""
+            runtime:
+                type: grpc
+                address: stdio://
+                command:
+                    - audit-probe.exe
+                startupTimeout: 15s
+            permissions:
+                network:
+                    outbound: false
+                filesystem: {}
+    native_audit_windows_test.go:83: actual Winsock results: map[1.1.1.1:443:WSAEACCES [2606:4700:4700::1111]:443:WSAEACCES]
+--- PASS: TestWindowsNativeRuntimeDenialAudit (1.26s)
+PASS
