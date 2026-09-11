@@ -3,6 +3,15 @@
 This file lists executable evidence rather than treating source presence as a
 passing acceptance test.
 
+2026-09-11 independent Windows repository acceptance: a sibling repository with
+its own Git history and fresh Python environment built a native plugin ZIP using
+only its own source. The unchanged running Lite host installed and enabled it
+through normal APIs. Initial sync imported two documents; unchanged sync processed
+zero; changing Alpha updated one while Beta's ID/hash/timestamp stayed unchanged.
+Parsing, summary, hybrid search and vector-only search completed successfully.
+Host Git state and executable hashes were identical before and after acceptance.
+See [committed evidence and scope](../docs/acceptance/windows-independent-plugin-2026-09-11.md).
+
 2026-09-10 controlled HTTP update: host policy tests cover exact hosts/methods,
 IPv4/IPv6 and mixed DNS denial, per-hop rebinding, pinned numeric dialing with
 TLS verification, redirects, header/cookie isolation, size limits and cancellation.
@@ -40,8 +49,8 @@ audit configuration returns Access Denied. Policy-applied logs explicitly carry
 | Requirement | Automated evidence | Current state |
 | --- | --- | --- |
 | External directory discovery | `TestStandalonePythonTemplateIsSelfContained` checks a copied manifest; `TestExternalDirectoryProcessPluginCompletesIncrementalRoundTrip` discovers a temporary external directory, starts its executable, performs Health/identity checks, and runs full plus incremental fetch over real TCP gRPC | passing on Windows |
-| Standalone repository build | `plugin/templates/datasource-python/Dockerfile` uses only files in that directory; `plugin.yml` builds with that directory as the complete Docker context | automated in Linux Docker CI |
-| Complete datasource sync | local-directory gRPC round trip performs full/incremental fetch; `TestPluginIncrementalSyncOnlyReprocessesChangedFile` runs a real gRPC adapter through two host `ProcessSync` passes and the production SQLite knowledge repository | passed on Windows; live parser/index worker E2E remains pending |
+| Standalone repository build | independent `WeKnora-LocalDirectory-Plugin` Git repository, fresh venv, vendored Proto/SDK, native EXE ZIP; template Docker context also self-contained | passed on Windows 2026-09-11; Linux Docker CI path separate |
+| Complete datasource sync | independent plugin installed through live Lite APIs; full, unchanged and single-file update sync; completed parsing/summary and content-checked hybrid/vector-only retrieval | passed on Windows 2026-09-11; Linux OCI E2E separate |
 | No outbound networking | OCI HostConfig unit test requires `network=none` and AppArmor | passing |
 | Blocked attempt is recorded | `plugin/security-probe/verify-linux.sh` performs a real connect and checks kernel audit; manual `apparmor-audit` workflow installs the profile and runs it | executable Linux acceptance job added; an AppArmor-enabled run is still required |
 | One changed file only | `TestIncrementalFetchEmitsOnlyChangedFile`, gRPC round trip, and host `TestPluginIncrementalSyncOnlyReprocessesChangedFile` | passed on Windows: two persisted rows remain, only the changed row gets a new ID/hash, and file-save/parser-task counts rise by one |

@@ -1,0 +1,8 @@
+{
+  "source_commit": "af06233a2bd81739a8d0034372cca3220ebea8c8",
+  "python": "3.10.21",
+  "bundle": "independent-directory-windows-x64-0.1.0.zip",
+  "sha256": "5f05f97b1019a9fc446480c268c154b370530625ce961ad6ffdcf793a5f15ab8",
+  "bytes": 16960341,
+  "build_uses_main_repository": false
+}
