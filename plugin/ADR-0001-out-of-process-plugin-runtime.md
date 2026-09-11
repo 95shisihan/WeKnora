@@ -2,7 +2,7 @@
 
 - Status: accepted for v1alpha1
 - Scope: datasource, web search, document parser, retrieval engine, and
-  OpenAI-compatible model provider implemented; proprietary model transports remain
+  model providers implemented, including vendor-owned inference over gRPC.
 
 ## Decision
 
@@ -77,11 +77,13 @@ evaluated before any plugin code starts.
 ## Remaining work
 
 `datasource/v1`, `web_search/v1`, `document_parser/v1`, `retrieval_engine/v1`,
-and the metadata/config portion of `model_provider/v1` have typed protocols,
+and `model_provider/v1` have typed protocols,
 host adapters, Manager lifecycle/health integration, administrator enable/disable
-wiring, and OCI examples. Model provider v1 intentionally supports only the
-host's OpenAI-compatible transport; proprietary model transports still require
-a typed invocation/streaming contract.
+wiring, and examples. Since 2026-09-11, model providers can retain the host's
+OpenAI-compatible transport or select `grpc_inference`: typed operations and
+versioned JSON request/result schemas cover chat (including server streaming),
+embedding, reranking, vision and transcription. Vendor authentication and wire
+formats stay inside the plugin. See [model inference](MODEL-INFERENCE.md).
 
 The five extension types share one Manager state machine. In-process built-ins
 use `BuiltinRegistration` callbacks to publish and withdraw their existing
@@ -92,6 +94,6 @@ process-wide probe, so registration is their context-free health boundary and
 tenant-specific connectivity remains validated on use.
 
 Enable/disable overrides remain process-local in v1alpha1. Persisting an
-administrator override across restart, and proprietary non-OpenAI model
-transport protocols, are follow-up compatibility work rather than lifecycle
-registration gaps.
+administrator override across restart remains separate from model protocol
+extension work. Vendor-specific commercial-service acceptance remains necessary
+for each adapter; the custom-protocol reference fixture proves framework routing.

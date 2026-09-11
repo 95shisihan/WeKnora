@@ -1,5 +1,7 @@
 # WeKnora 扩展能力插件化框架：当前架构与实现说明
 
+> 2026-09-11 专有模型协议扩展：新增 `grpc_inference`，支持插件执行聊天/流式、向量、重排、图片理解、语音转写。Windows 独立 EXE 经 Manager/stdio gRPC 调用 HMAC/NDJSON 参考服务已通过，取消、超时、凭证隔离和启停也已验证。旧 OpenAI 兼容方式保留。见[开发文档](../plugin/MODEL-INFERENCE.md)。本次不修改异常退出清理。
+
 > 2026-09-11 Windows 拒绝事件验收补充：第二条已在管理员 WFP 权限环境取得真实证据，包括父/子进程禁网、四条系统拒绝事件，以及生产宿主日志链路输出的两条带插件 ID 的 `plugin.network_denied`。见[验收记录](acceptance/windows-network-audit-2026-09-11.md)。普通权限 Lite 进程的审计权限限制仍存在。
 
 > 2026-09-11 独立仓库验收补充：课题第一条已在 Windows 完整通过。主仓外真实独立 Git 仓库构建、管理员安装启用、完整同步、解析/摘要与混合及纯向量检索全部完成，验收前后主仓工作树和宿主 EXE 哈希一致。首次新增 2 篇、无修改处理 0 篇、仅改 Alpha 更新 1 篇。见[已提交的验收记录](acceptance/windows-independent-plugin-2026-09-11.md)。下文涉及 Linux OCI 的历史缺口仍单独保留。
@@ -174,7 +176,7 @@ PE/ELF/Mach-O 可执行文件，`oci` 必须引用预构建镜像；源码、脚
 | 数据源 | `datasource.proto`: `GetInfo`、`Validate`、`ListResources`、`ResolveResourceAncestors`、流式 `Fetch` | `datasourcegrpc.Connector`、`LoadDatasources` | `ConnectorRegistry.Register`、`RegisterConnectorMetadata` |
 | 文档解析 | `document_parser.proto`: `GetInfo`、流式 `Parse` | `documentparsergrpc.Connector`、`LoadDocumentParser` | `docparser.RegisterExternalEngine` |
 | 网络搜索 | `web_search.proto`: `GetInfo`、`Search` | `websearchgrpc.Connector`、`LoadWebSearch` | `web_search.Registry.RegisterExternal` |
-| 模型厂商 | `model_provider.proto`: `GetInfo`、`ValidateConfig` | `modelprovidergrpc.Connector`、`LoadModelProvider` | `provider.RegisterExternal` |
+| 模型厂商 | `model_provider.proto`: `GetInfo`、`ValidateConfig`、`Infer`、`InferStream` | `modelprovidergrpc.Connector`、`LoadModelProvider`、五类模型工厂适配 | `provider.RegisterExternal` |
 | 检索引擎 | `retrieval_engine.proto`: `GetInfo`、`Upsert`、`Search`、`Delete`、`Copy`、`Update`、`Estimate` | `retrievalgrpc.Engine`、`LoadRetrievalEngine` | `RetrieveEngineRegistry.RegisterExternal` 和 `types.RegisterExternalRetrieverEngine` |
 
 各业务 Registry 都增加了线程安全的外部注册/摘除能力，并保护内置 ID 不被外部实现覆盖：
@@ -185,7 +187,7 @@ PE/ELF/Mach-O 可执行文件，`oci` 必须引用预构建镜像；源码、脚
 - 模型厂商：`internal/models/provider/provider.go` 的 `RegisterBuiltin`、`RegisterExternal`、`UnregisterExternal`；
 - 检索引擎：`internal/application/service/retriever/registry.go` 的 `RegisterExternal`、`UnregisterExternal`。
 
-模型厂商有意采用较窄的 v1 边界：插件提供厂商元数据、默认 URL、动态字段和配置校验，真实 Chat/Embedding/Rerank 请求仍由宿主 OpenAI-compatible 客户端发出。`LoadModelProvider` 会拒绝其他 transport。这样先覆盖大量兼容厂商，同时避免在 v1 中仓促定义专有消息、鉴权和流事件 ABI。
+模型插件现有两种 transport：`openai_compatible` 保留元数据/校验和宿主兼容客户端；新增 `grpc_inference` 通过独立进程执行五类模型请求，厂商专有认证、请求与流事件映射由插件承担。公共 SDK 定义输入/输出 JSON 契约，宿主保持统一业务接口。其他未支持的 transport 仍会被拒绝。
 
 ## 7. 数据源示例与增量同步
 
@@ -281,7 +283,7 @@ sudo --preserve-env=PATH sh plugin/security-probe/verify-linux.sh
 3. **“完整同步”证据还可加强。** 现有测试已覆盖插件 gRPC、宿主 SQLite 落库和解析任务只新增一次；建议再加独立仓库 OCI 镜像 -> 实际 parser worker -> chunk -> embedding -> retrieval 的黑盒 E2E。
 4. **第三方可用性尚未做人员验证。** 安排未参与实现的人仅复制 Python 模板和阅读 README 完成改名、构建、装载、首次同步与增量同步，并把发现的问题反哺文档。
 5. **启停状态不持久。** 若需要运维一致性，应把管理员覆盖写入系统配置/数据库，并规定它与 Manifest 默认值的优先级。
-6. **模型协议能力有限。** 专有模型传输需要新版本的类型化调用、流式事件、鉴权与错误协议；当前不应通过伪装 OpenAI-compatible 来绕过限制。
+6. **专有模型需要逐厂商适配。** 推理扩展通道和专有协议参考实现已通过 Windows 测试，但不等于所有商业厂商已经适配；需用真实账号验证各厂商实现。
 7. **v1alpha1 权限表达保守。** 写目录和域名 allowlist 被直接拒绝是正确的 fail-closed 行为；后续只有在能可靠执行、审计和按租户回收后再开放。
 
 ## 11. 最终评价

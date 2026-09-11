@@ -3,6 +3,13 @@
 This file lists executable evidence rather than treating source presence as a
 passing acceptance test.
 
+2026-09-11 proprietary model inference: `TestNativeModelInferenceFactories`
+loads a compiled Windows EXE through Manager/stdio gRPC and reaches a custom
+HMAC-authenticated HTTP/NDJSON reference service through all five model factories.
+Tests cover tools/reasoning/usage, per-request credentials, disable/re-enable,
+stream failure, cancellation propagated to HTTP, deadlines and invalid vectors/ranks.
+Legacy metadata-only transport remains supported. See [contract and scope](MODEL-INFERENCE.md).
+
 2026-09-11 Windows denial audit acceptance: elevated native isolation tests
 received four real WFP CLASSIFY_DROP events for IPv4/IPv6 TCP attempts from a
 restricted process and its descendant. A separate production-runtime integration
@@ -68,6 +75,6 @@ audit configuration returns Access Denied. Policy-applied logs explicitly carry
 | Built-in/external lifecycle parity | `BuiltinRegistration` publishes and withdraws datasource, web search, document parser, model provider, and retrieval engine implementations through the same Manager state machine and admin API | implemented; tenant-config-dependent built-ins have no context-free periodic probe and report configuration health on use |
 | Web search without core factory edits | typed protocol, external registry metadata, Manager lifecycle, and `mock-web-search` example | implemented; OCI E2E requires Docker CI |
 | Document parser without core registry edits | streamed protocol, shared engine registry, Manager lifecycle, and `plain-text-parser` example | implemented; OCI E2E requires Docker CI |
-| Model provider without core registry edits | typed metadata/config validation, shared registry, OpenAI-compatible fallback, and `mock-model-provider` example | implemented for OpenAI-compatible transports |
+| Model provider without core registry edits | metadata/config plus `Infer`/`InferStream`, public SDK, five model factories, proprietary HMAC/NDJSON example and standalone scaffolder | Windows native EXE and regression tests passed; individual commercial vendors need their own adapters/acceptance |
 | Retrieval engine without core factory edits | full CRUD/search protocol, public SDK, shared registry and `memory-retrieval` example | implemented; persistent-backend OCI E2E requires Docker CI |
-| All requested extension types | datasource, web search, document parser, compatible model providers, and retrieval engines use the unified Manager | implemented; proprietary model transports remain an explicit v1 limitation |
+| All requested extension types | datasource, web search, document parser, compatible/proprietary model providers, and retrieval engines use the unified Manager | implemented; model inference transport extension verified on Windows |

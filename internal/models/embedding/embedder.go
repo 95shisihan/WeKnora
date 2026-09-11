@@ -123,6 +123,13 @@ func newEmbedder(config Config, pooler EmbedderPooler, ollamaService *ollama.Oll
 		}
 
 		// Route to provider-specific embedders
+		executor, err := provider.ResolveInference(providerName, types.ModelTypeEmbedding)
+		if err != nil {
+			return nil, err
+		}
+		if executor != nil {
+			return &pluginEmbedder{executor: executor, config: config, pooler: pooler}, nil
+		}
 		switch providerName {
 		case provider.ProviderAliyun:
 			// 检查是否是多模态嵌入模型

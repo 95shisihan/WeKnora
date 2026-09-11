@@ -3,7 +3,9 @@ package asr
 import (
 	"context"
 
+	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/plugin/sdk/model"
 )
 
 // Segment represents a transcribed segment with timestamps.
@@ -30,12 +32,14 @@ type ASR interface {
 
 // Config holds the configuration needed to create an ASR instance.
 type Config struct {
-	Source    types.ModelSource
-	BaseURL   string
-	ModelName string
-	APIKey    string
-	ModelID   string
-	Language  string // optional: specify language for transcription
+	Source      types.ModelSource
+	BaseURL     string
+	ModelName   string
+	APIKey      string
+	ModelID     string
+	Provider    string
+	ExtraConfig map[string]string
+	Language    string // optional: specify language for transcription
 	// CustomHeaders 允许在调用远程 API 时附加自定义 HTTP 请求头（类似 OpenAI Python SDK 的 extra_headers）。
 	CustomHeaders map[string]string
 }
@@ -53,13 +57,22 @@ func ConfigFromModel(m *types.Model) *Config {
 		BaseURL:       m.Parameters.BaseURL,
 		ModelName:     m.Name,
 		Source:        m.Source,
+		Provider:      m.Parameters.Provider,
+		ExtraConfig:   m.Parameters.ExtraConfig,
 		CustomHeaders: m.Parameters.CustomHeaders,
 	}
 }
 
 // NewASR creates an ASR instance based on the provided configuration.
-// All ASR vendors use the OpenAI-compatible /v1/audio/transcriptions API.
+// External inference plugins can implement proprietary transcription protocols.
 func NewASR(config *Config) (ASR, error) {
+	executor, err := provider.ResolveInference(provider.ProviderName(config.Provider), types.ModelTypeASR)
+	if err != nil {
+		return nil, err
+	}
+	if executor != nil {
+		return wrapASRLangfuse(&pluginASR{executor: executor, config: model.Config{ModelName: config.ModelName, ModelID: config.ModelID, BaseURL: config.BaseURL, APIKey: config.APIKey, Extra: model.Extra(config.ExtraConfig), CustomHeaders: config.CustomHeaders}, language: config.Language}, nil)
+	}
 	a, err := NewOpenAIASR(config)
 	return wrapASRLangfuse(a, err)
 }

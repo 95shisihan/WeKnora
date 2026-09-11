@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-11T16:25:50.2077750+08:00",
+  "host_baseline": "289d0d23",
+  "independent_repository": "E:/Tengxun_RAG/WeKnora-Proprietary-Model-Plugin",
+  "independent_commit": "bd02851491ceb2778fb5173932d9a14b632d1c7a",
+  "artifacts": [
+    {
+      "path": "E:/Tengxun_RAG/WeKnora/artifacts/weknora-model-inference.exe",
+      "bytes": 439374028,
+      "sha256": "a0600dcce3f1d9fe77a1fc67b11776236e2833af0ef5722fbc5c4f50c8ab7c2e"
+    },
+    {
+      "path": "E:/Tengxun_RAG/WeKnora-Proprietary-Model-Plugin/bin/proprietary-model.exe",
+      "bytes": 17659904,
+      "sha256": "85a7ceca67afb8dedc07c0deb618a87eb631200ba68f8fbc369a9b4e7b2478fa"
+    },
+    {
+      "path": "E:/Tengxun_RAG/WeKnora-Proprietary-Model-Plugin/proprietary-model-windows.zip",
+      "bytes": 9208618,
+      "sha256": "b20c51d93b26593f6b3d542ef211fa25587d987d42b3432f25ab37a0fede809a"
+    }
+  ],
+  "host_build": "scripts/local-dev.ps1 -Action build -BuildOutput artifacts/weknora-model-inference.exe",
+  "native_test": "TestNativeModelInferenceFactories",
+  "protocol": "grpc_inference -> HMAC HTTP /vendor/infer + NDJSON",
+  "commercial_vendor_tested": false,
+  "running_lite_replaced": false
+}

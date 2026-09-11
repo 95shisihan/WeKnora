@@ -161,6 +161,7 @@ func (m *Manager) InstallArchive(archive []byte, installRoot string) (*Manifest,
 	m.mu.Unlock()
 	status := statusFromManifest(manifest)
 	status.State = StateDisabled
+	reserveModelProviderNames(manifest)
 	m.setStatus(status)
 	return manifest, nil
 }
@@ -186,6 +187,7 @@ func (m *Manager) Load(ctx context.Context, manifests []*Manifest) error {
 		m.manifests[manifest.Metadata.ID] = manifest
 		m.mu.Unlock()
 		status := statusFromManifest(manifest)
+		reserveModelProviderNames(manifest)
 		if !manifest.Enabled() || !httpApproved(manifest) {
 			status.State = StateDisabled
 			m.setStatus(status)

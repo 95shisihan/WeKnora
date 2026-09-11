@@ -1,0 +1,33 @@
+=== RUN   TestManagerLoadsAndDisablesModelProviderPlugin
+INFO [2026-09-11 16:25:02.138] [] remote_api.go:161[logRequest] | [LLM Request] model=legacy, stream=false, request:
+{
+  "model": "legacy",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello"
+    }
+  ]
+}
+INFO [2026-09-11 16:25:02.179] [] usage.go:19[logUsage] | [LLM Usage] model=legacy, purpose=, prompt_prefix=, prompt_tokens=0, completion_tokens=0, total_tokens=1, cached_tokens=0, cache_read_tokens=0, cache_write_tokens=0, cache_miss_tokens=0, cache_reported=false, cache_status=unsupported
+--- PASS: TestManagerLoadsAndDisablesModelProviderPlugin (0.04s)
+=== RUN   TestDisabledModelPluginNeverFallsBackAtStartup
+--- PASS: TestDisabledModelPluginNeverFallsBackAtStartup (0.00s)
+=== RUN   TestModelInferenceFactories
+    model_inference_test.go:276: Five model factories reached HMAC vendor protocol; tools/reasoning/usage, NDJSON stream, binary media, per-request credentials and disable/re-enable verified
+--- PASS: TestModelInferenceFactories (0.01s)
+=== RUN   TestNativeModelInferenceFactories
+    model_inference_test.go:276: Five model factories reached HMAC vendor protocol; tools/reasoning/usage, NDJSON stream, binary media, per-request credentials and disable/re-enable verified
+--- PASS: TestNativeModelInferenceFactories (0.16s)
+=== RUN   TestModelInferenceFailuresAndCancellation
+=== RUN   TestModelInferenceFailuresAndCancellation/broken
+=== RUN   TestModelInferenceFailuresAndCancellation/failure
+--- PASS: TestModelInferenceFailuresAndCancellation (0.10s)
+    --- PASS: TestModelInferenceFailuresAndCancellation/broken (0.00s)
+    --- PASS: TestModelInferenceFailuresAndCancellation/failure (0.00s)
+PASS
+ok  	github.com/Tencent/WeKnora/internal/plugin	0.852s
+=== RUN   TestInferenceContractRejectsUnsupportedAndMalformedResponses
+--- PASS: TestInferenceContractRejectsUnsupportedAndMalformedResponses (0.06s)
+PASS
+ok  	github.com/Tencent/WeKnora/internal/plugin/modelprovidergrpc	0.581s

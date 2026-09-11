@@ -9,6 +9,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/models/utils/ollama"
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/plugin/sdk/model"
 )
 
 // VLM defines the interface for Vision Language Model operations.
@@ -107,6 +108,13 @@ func newVLM(config *Config, ollamaService *ollama.OllamaService) (VLM, error) {
 	providerName := provider.ProviderName(config.Provider)
 	if providerName == "" {
 		providerName = provider.DetectProvider(config.BaseURL)
+	}
+	executor, err := provider.ResolveInference(providerName, types.ModelTypeVLLM)
+	if err != nil {
+		return nil, err
+	}
+	if executor != nil {
+		return &pluginVLM{executor: executor, config: model.Config{ModelName: config.ModelName, ModelID: config.ModelID, BaseURL: config.BaseURL, APIKey: config.APIKey, Extra: config.Extra, CustomHeaders: config.CustomHeaders}}, nil
 	}
 	if providerName == provider.ProviderWeKnoraCloud {
 		return NewWeKnoraCloudVLM(config)

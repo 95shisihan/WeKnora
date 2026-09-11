@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/plugin/modelprovidergrpc"
 )
 
@@ -14,6 +15,14 @@ type LoadedModelProvider struct {
 	Point     ExtensionPoint
 	Connector *modelprovidergrpc.Connector
 	runtime   *managedRuntime
+}
+
+func reserveModelProviderNames(manifest *Manifest) {
+	for _, point := range manifest.Spec.ExtensionPoints {
+		if point.Type == ExtensionModelProvider {
+			provider.ReserveInference(provider.ProviderName(point.ID))
+		}
+	}
 }
 
 func (p *LoadedModelProvider) Health(ctx context.Context) error { return p.Connector.Health(ctx) }

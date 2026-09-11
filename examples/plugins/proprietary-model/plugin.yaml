@@ -1,0 +1,25 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.proprietary-model
+  name: Proprietary model protocol example
+  version: 0.1.0
+spec:
+  extensionPoints:
+    - type: model_provider
+      id: proprietary_model
+      protocolVersion: v1
+  compatibility:
+    weknora: ">=0.7.2-dev <1.0.0"
+    pluginAPI: v1
+  runtime:
+    type: grpc
+    address: stdio://
+    command: [bin/proprietary-model.exe]
+    startupTimeout: 15s
+  permissions:
+    network:
+      outbound: true
+    filesystem:
+      read: []
+      write: []

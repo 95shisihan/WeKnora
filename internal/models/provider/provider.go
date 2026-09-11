@@ -229,6 +229,11 @@ func RegisterExternal(p Provider) error {
 	}
 	registry[name] = p
 	external[name] = struct{}{}
+	if executor, ok := p.(Inference); ok && executor.UsesInference() {
+		inferenceNames[name] = true
+	} else {
+		delete(inferenceNames, name)
+	}
 	return nil
 }
 

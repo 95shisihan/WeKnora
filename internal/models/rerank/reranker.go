@@ -8,6 +8,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/plugin/sdk/model"
 )
 
 // Reranker defines the interface for document reranking
@@ -135,6 +136,13 @@ func newReranker(config *RerankerConfig) (Reranker, error) {
 	providerName := provider.ProviderName(config.Provider)
 	if providerName == "" {
 		providerName = provider.DetectProvider(config.BaseURL)
+	}
+	executor, lookupErr := provider.ResolveInference(providerName, types.ModelTypeRerank)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
+	if executor != nil {
+		return &pluginReranker{executor: executor, config: model.Config{ModelName: config.ModelName, ModelID: config.ModelID, BaseURL: config.BaseURL, APIKey: config.APIKey, Extra: model.Extra(config.ExtraConfig), CustomHeaders: config.CustomHeaders}}, nil
 	}
 
 	var (

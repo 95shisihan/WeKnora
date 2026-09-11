@@ -270,14 +270,12 @@ docker build -f examples/plugins/plain-text-parser/Dockerfile \
 
 ## Model Provider gRPC 契约
 
-协议源文件为 [model_provider.proto](proto/model_provider.proto)。v1 的模型插件负责
-厂商元数据、支持的模型类型、默认 URL、动态字段和配置校验；实际 Chat、Embedding
-和 Rerank 请求仍由宿主已有的 OpenAI-compatible 客户端发送。因此插件必须在
-`GetInfo` 返回 `transport: openai_compatible`，其他 transport 会在装载时被拒绝。
+协议源文件为 [model_provider.proto](proto/model_provider.proto)。模型插件提供厂商元数据、支持的模型类型、默认 URL、动态字段和配置校验，并可选择两种 transport：
 
-这种边界已经覆盖大量兼容 OpenAI API 的新厂商，而且新增厂商不再需要修改
-`models/provider/provider.go`、Embedding switch 或 Rerank switch。需要专有消息格式、
-签名或流事件的厂商应等待后续类型化调用协议，不能假装成兼容协议。
+- `openai_compatible`：保留原行为，实际请求由宿主兼容客户端发送。
+- `grpc_inference`：通过新增 `Infer` / `InferStream` 将 Chat、Embedding、Rerank、VLM、ASR 请求交给插件，专有鉴权、消息和流事件由插件处理。无需逐厂商修改主仓工厂。
+
+公共 SDK、独立脚手架、自定义 HMAC/NDJSON 示例和 Windows 实测范围见[模型推理插件开发](MODEL-INFERENCE.md)。未识别的 transport 仍会被拒绝。
 
 ```bash
 docker build -f examples/plugins/mock-model-provider/Dockerfile \

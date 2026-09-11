@@ -12,7 +12,7 @@ on:
       - "internal/datasource/connector.go"
       - "internal/infrastructure/docparser/engine_registry.go"
       - "internal/infrastructure/web_search/registry.go"
-      - "internal/models/provider/provider.go"
+      - "internal/models/**"
       - "internal/handler/plugin*.go"
       - "internal/application/service/datasource_plugin_incremental_test.go"
       - ".github/workflows/plugin.yml"
@@ -26,7 +26,7 @@ on:
       - "internal/datasource/connector.go"
       - "internal/infrastructure/docparser/engine_registry.go"
       - "internal/infrastructure/web_search/registry.go"
-      - "internal/models/provider/provider.go"
+      - "internal/models/**"
       - "internal/handler/plugin*.go"
       - "internal/application/service/datasource_plugin_incremental_test.go"
       - ".github/workflows/plugin.yml"
@@ -60,6 +60,8 @@ jobs:
             ./internal/plugin/... \
             ./plugin/proto \
             ./plugin/sdk/... \
+            ./internal/models/chat ./internal/models/embedding ./internal/models/rerank \
+            ./internal/models/vlm ./internal/models/asr ./internal/models/provider \
             ./examples/plugins/...
           go test -count=1 ./internal/application/service \
             -run '^TestPluginIncrementalSyncOnlyReprocessesChangedFile$'
@@ -82,6 +84,15 @@ jobs:
           python -m pip install grpcio==1.80.0 grpcio-health-checking==1.80.0 protobuf==6.33.6 h2==4.3.0
           cd plugin/sdk/python
           python -m unittest -v
+
+      - name: Build and run independent model plugin scaffold
+        run: |
+          python -m unittest discover -s plugin -p test_scaffold_model_plugin.py -v
+          target="$(mktemp -d)/model-plugin"
+          python plugin/scaffold_model_plugin.py "$target" --module example.org/standalone-model
+          (cd "$target" && CGO_ENABLED=0 go build -mod=mod -o bin/proprietary-model.exe .)
+          WEKNORA_PROPRIETARY_MODEL_EXE="$target/bin/proprietary-model.exe" \
+            go test -count=1 ./internal/plugin -run '^TestNativeModelInferenceFactories$'
 
       - name: Test Python binary stdio interoperability
         run: WEKNORA_PYTHON="$(command -v python)" go test -count=1 ./plugin/sdk/transport -run TestPythonStdioGRPC

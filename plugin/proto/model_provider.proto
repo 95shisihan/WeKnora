@@ -7,6 +7,10 @@ option go_package = "github.com/Tencent/WeKnora/plugin/proto;pluginproto";
 service ModelProviderPlugin {
   rpc GetInfo(ModelProviderInfoRequest) returns (ModelProviderInfoResponse);
   rpc ValidateConfig(ModelProviderValidateRequest) returns (ModelProviderValidateResponse);
+  // Available only when GetInfo.transport is grpc_inference. JSON schemas are
+  // defined in plugin/sdk/model; these are WeKnora operations, not vendor APIs.
+  rpc Infer(ModelInferenceRequest) returns (ModelInferenceResponse);
+  rpc InferStream(ModelInferenceRequest) returns (stream ModelInferenceResponse);
 }
 
 message ModelProviderInfoRequest {}
@@ -42,3 +46,20 @@ message ModelProviderInfoResponse {
 
 message ModelProviderValidateRequest { bytes config_json = 1; }
 message ModelProviderValidateResponse {}
+
+enum ModelOperation {
+  MODEL_OPERATION_UNSPECIFIED = 0;
+  MODEL_OPERATION_CHAT = 1;
+  MODEL_OPERATION_EMBED = 2;
+  MODEL_OPERATION_RERANK = 3;
+  MODEL_OPERATION_VISION = 4;
+  MODEL_OPERATION_TRANSCRIBE = 5;
+}
+
+message ModelInferenceRequest {
+  ModelOperation operation = 1;
+  bytes config_json = 2;
+  bytes input_json = 3;
+}
+
+message ModelInferenceResponse { bytes output_json = 1; }

@@ -10,6 +10,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/types"
 	pluginproto "github.com/Tencent/WeKnora/plugin/proto"
+	"github.com/Tencent/WeKnora/plugin/sdk/model"
 	"github.com/Tencent/WeKnora/plugin/sdk/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -22,6 +23,7 @@ type Connector struct {
 	client                          pluginproto.ModelProviderPluginClient
 	mu                              sync.RWMutex
 	info                            provider.ProviderInfo
+	transport                       string
 }
 
 func Dial(ctx context.Context, address, pluginID, version, providerName string) (*Connector, error) {
@@ -56,7 +58,7 @@ func (c *Connector) Health(ctx context.Context) error {
 	if remote.GetId() != c.pluginID || remote.GetVersion() != c.version || remote.GetProtocolVersion() != "v1" || remote.GetProviderName() != c.providerName {
 		return fmt.Errorf("model provider plugin identity mismatch")
 	}
-	if remote.GetTransport() != "openai_compatible" {
+	if remote.GetTransport() != "openai_compatible" && remote.GetTransport() != model.Transport {
 		return fmt.Errorf("model provider plugin %s requests unsupported transport %q", c.pluginID, remote.GetTransport())
 	}
 	info, err := convertInfo(remote)
@@ -64,6 +66,11 @@ func (c *Connector) Health(ctx context.Context) error {
 		return err
 	}
 	c.mu.Lock()
+	if c.transport != "" && c.transport != remote.GetTransport() {
+		c.mu.Unlock()
+		return fmt.Errorf("model provider transport changed during runtime")
+	}
+	c.transport = remote.GetTransport()
 	c.info = info
 	c.mu.Unlock()
 	return nil
@@ -124,6 +131,9 @@ func (c *Connector) ValidateConfig(config *provider.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, err := c.client.ValidateConfig(ctx, &pluginproto.ModelProviderValidateRequest{ConfigJson: raw}); err != nil {
+		if c.UsesInference() {
+			return inferenceError(err)
+		}
 		return fmt.Errorf("model provider %s config validation: %w", c.providerName, err)
 	}
 	return nil

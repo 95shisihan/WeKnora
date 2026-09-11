@@ -1,0 +1,21 @@
+ok  	github.com/Tencent/WeKnora/internal/plugin	5.808s
+?   	github.com/Tencent/WeKnora/internal/plugin/datasourcegrpc	[no test files]
+?   	github.com/Tencent/WeKnora/internal/plugin/documentparsergrpc	[no test files]
+ok  	github.com/Tencent/WeKnora/internal/plugin/httpbroker	0.387s
+?   	github.com/Tencent/WeKnora/internal/plugin/modelprovidergrpc	[no test files]
+?   	github.com/Tencent/WeKnora/internal/plugin/retrievalgrpc	[no test files]
+?   	github.com/Tencent/WeKnora/internal/plugin/websearchgrpc	[no test files]
+ok  	github.com/Tencent/WeKnora/internal/plugin/windowsandbox	0.263s
+ok  	github.com/Tencent/WeKnora/plugin/proto	0.094s
+?   	github.com/Tencent/WeKnora/plugin/sdk/hosthttp	[no test files]
+?   	github.com/Tencent/WeKnora/plugin/sdk/model	[no test files]
+?   	github.com/Tencent/WeKnora/plugin/sdk/retrieval	[no test files]
+ok  	github.com/Tencent/WeKnora/plugin/sdk/transport	0.243s
+ok  	github.com/Tencent/WeKnora/internal/models/chat	1.812s
+ok  	github.com/Tencent/WeKnora/internal/models/embedding	1.987s
+ok  	github.com/Tencent/WeKnora/internal/models/rerank	0.579s
+ok  	github.com/Tencent/WeKnora/internal/models/vlm	0.549s
+ok  	github.com/Tencent/WeKnora/internal/models/asr	0.514s
+ok  	github.com/Tencent/WeKnora/internal/models/provider	0.502s
+?   	github.com/Tencent/WeKnora/examples/plugins/proprietary-model	[no test files]
+?   	github.com/Tencent/WeKnora/examples/plugins/proprietary-model/adapter	[no test files]

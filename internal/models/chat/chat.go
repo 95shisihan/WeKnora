@@ -9,6 +9,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/models/utils/ollama"
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/plugin/sdk/model"
 )
 
 // Tool represents a function/tool definition
@@ -164,6 +165,13 @@ func NewRemoteChat(config *ChatConfig) (Chat, error) {
 	providerName := provider.ProviderName(config.Provider)
 	if providerName == "" {
 		providerName = provider.DetectProvider(config.BaseURL)
+	}
+	executor, err := provider.ResolveInference(providerName, types.ModelTypeKnowledgeQA)
+	if err != nil {
+		return nil, err
+	}
+	if executor != nil {
+		return &pluginChat{executor: executor, config: model.Config{ModelName: config.ModelName, ModelID: config.ModelID, BaseURL: config.BaseURL, APIKey: config.APIKey, Extra: model.Extra(config.ExtraConfig), CustomHeaders: config.CustomHeaders}}, nil
 	}
 	if providerName == provider.ProviderAnthropic {
 		return NewAnthropicChat(config)
