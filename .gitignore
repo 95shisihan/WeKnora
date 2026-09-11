@@ -37,6 +37,10 @@ data/files/
 data/weknora.db
 data/weknora.db-wal
 data/weknora.db-shm
+# Local plugin installations, build packages, acceptance output and backups.
+# Source manifests, SDKs and reproducible tests live under plugin/ and examples/.
+/data/plugins/
+/artifacts/
 skills-lock.json
 
 web/
