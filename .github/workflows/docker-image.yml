@@ -15,7 +15,27 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  publishing-config:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Check Docker Hub publishing configuration
+        id: check
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_PASSWORD" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Docker image publishing skipped: configure DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD to enable it." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   build-ui:
+    needs: publishing-config
+    if: needs.publishing-config.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -68,6 +88,8 @@ jobs:
           cache-to: type=gha,scope=build-ui,mode=max
 
   build-docreader:
+    needs: publishing-config
+    if: needs.publishing-config.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Free Disk Space
@@ -117,6 +139,8 @@ jobs:
           cache-to: type=gha,scope=build-docreader,mode=max
 
   build-sandbox:
+    needs: publishing-config
+    if: needs.publishing-config.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -176,6 +200,8 @@ jobs:
           cache-to: type=gha,scope=build-sandbox-cube,mode=max
 
   build-app:
+    needs: publishing-config
+    if: needs.publishing-config.outputs.enabled == 'true'
     strategy:
       matrix:
         include:

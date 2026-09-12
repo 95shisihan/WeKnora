@@ -1,6 +1,7 @@
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
+COPY third_party/anydoc-go ./third_party/anydoc-go
 RUN go mod download
 COPY plugin/proto ./plugin/proto
 COPY plugin/sdk/transport ./plugin/sdk/transport

@@ -61,6 +61,9 @@ func TestWindowsNativeHelper(t *testing.T) {
 	if os.Getenv("WEKNORA_NATIVE_CHILD") != "1" {
 		cmd := exec.Command(os.Args[0], "-test.run=^TestWindowsNativeHelper$")
 		cmd.Env = append(os.Environ(), "WEKNORA_NATIVE_CHILD=1")
+		// Reuse inherited pipes: opening NUL is forbidden inside AppContainer.
+		cmd.Stdin = os.Stdin
+		cmd.Stderr = os.Stderr
 		out, err := cmd.Output()
 		if err != nil {
 			result.Errors["child"] = err.Error()
@@ -106,6 +109,14 @@ func TestWindowsNativeNoNetwork(t *testing.T) {
 		t.Fatal("TCP positive control", err)
 	}
 	_ = positive.Close()
+	// Only claim IPv6 isolation when the host has a working IPv6 route.
+	ipv6, ipv6Err := net.DialTimeout("tcp6", "[2606:4700:4700::1111]:443", 3*time.Second)
+	if ipv6 != nil {
+		_ = ipv6.Close()
+	}
+	if ipv6Err != nil {
+		t.Logf("IPv6 isolation not verified: host positive control failed: %v", ipv6Err)
+	}
 	udp, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -164,6 +175,12 @@ func TestWindowsNativeNoNetwork(t *testing.T) {
 			t.Errorf("%s file read: %s", name, r.File)
 		}
 		for _, protocol := range []string{"tcp4", "tcp6", "loopback"} {
+			if protocol == "tcp6" && ipv6Err != nil {
+				if r.Errors[protocol] == "<nil>" {
+					t.Errorf("%s IPv6 connection escaped sandbox", name)
+				}
+				continue
+			}
 			if !r.Denied[protocol] {
 				t.Errorf("%s %s not denied by OS access control: %s", name, protocol, r.Errors[protocol])
 			}
