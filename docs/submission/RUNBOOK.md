@@ -41,7 +41,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health
 
 ## 独立插件构建与应用演示
 
-正式交付时先从邮件中的独立目录插件仓库链接克隆，然后在该独立仓库根目录执行：
+先解压邮件附件 `WeKnora-plugins-topic1-LiuJian-2026.zip`。可直接在插件管理中上传 `plugins/WeKnora-LocalDirectory-Plugin/dist/independent-directory-windows-x64-0.1.0.zip`；如果需要从源码构建，在 `plugins/WeKnora-LocalDirectory-Plugin/` 目录执行：
 
 ```powershell
 python -m venv .venv

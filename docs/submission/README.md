@@ -1,6 +1,6 @@
 # 课题一提交说明：扩展能力插件化框架
 
-本成果为 2026 年腾讯犀牛鸟开源人才培养计划课题一的代码类提交。材料整理于 2026-09-11；最终代码版本以仓库根目录 `submission.yaml` 的 Tag 和完整 Commit SHA 为准。当前整理基线为 `cb7a5b9f28753eefffc39328a5cc3133bd446f73`，不是已冻结的最终版本。
+本成果为 2026 年腾讯犀牛鸟开源人才培养计划课题一的代码类提交。提交人：刘健（GitHub：95shisihan），材料更新于 2026-09-12。最终版本固定为 `rhino-2026-final-1`；完整 Commit SHA 记录在主分支根目录 `submission.yaml`。按流程要求，YAML 在最终 Tag 创建后单独提交，不移动最终 Tag。
 
 ## 成果概述
 
@@ -38,9 +38,10 @@
 - 他人仅依据文档独立实现插件：模板已提供，第三方独立复现尚待完成。
 - 中期补充的 Linux/Docker 要求：已有 OCI 与 AppArmor 实现及验收脚本，尚缺 Linux 实机完整运行和审计通过记录。
 
-已有原始证据随主仓保存在 `docs/acceptance/`。本次整理没有重跑全部测试，也没有将尚未完成的事项描述为通过。独立目录插件不发布远端仓库，正式提交时随邮件附上压缩包，附件结构见 [独立插件提交附件说明](PLUGIN-ARCHIVE-README.md)。
+已有原始证据随主仓保存在 `docs/acceptance/`。2026-09-12 的 [App 格式、vet、测试及构建](https://github.com/95shisihan/WeKnora/actions/runs/34676177440)与[插件框架 CI](https://github.com/95shisihan/WeKnora/actions/runs/34677593653)通过，后者包含 Windows 原生测试及 OCI 示例构建。Docker 发布流程因未配置 Docker Hub 凭据跳过发布，不代表已发布镜像或完成 Linux 实机业务验收。当天本机 Lite 重启后前端及后端健康检查均返回 HTTP 200。
+
+独立插件通过邮件附件 `WeKnora-plugins-topic1-LiuJian-2026.zip` 交付，不发布远端仓库。源码、选定 Windows 安装包、文件清单和校验值随附件提供，见 [独立插件提交附件说明](PLUGIN-ARCHIVE-README.md)。
 
 ## 贡献边界
 
 本次贡献是扩展架构、插件交付、权限执行、生命周期与业务接入。解析、分块、Embedding、索引和 RAG 问答由宿主原有能力承担；验收证明插件能够接通这些能力，不将其作为新算法成果。
-
