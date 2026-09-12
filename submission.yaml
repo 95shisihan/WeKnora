@@ -1,0 +1,15 @@
+version: 1
+student:
+  name: "刘健"
+  github_id: "95shisihan"
+topic:
+  id: "1"
+  title: "扩展能力插件化框架"
+result:
+  type: code
+  url: "https://github.com/95shisihan/WeKnora"
+repository:
+  url: "git@github.com:95shisihan/WeKnora.git"
+  branch: "main"
+  commit: "8d9fb1385e3776f31fcf25d29faaacbf7fe887a0"
+  tag: "rhino-2026-final-1"
