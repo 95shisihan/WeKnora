@@ -588,8 +588,11 @@ func TestInstallSkillRetriesAFailedSkillWithTheSameArchive(t *testing.T) {
 	require.Equal(t, "sk-1", id)
 	skill, getErr := fx.skillRepo.GetSkill(context.Background(), 7, "cfg-1", "sk-1")
 	require.NoError(t, getErr)
-	require.Equal(t, types.SkillStatusInstalling, skill.Status,
-		"a failed skill is a retry even when the archive digest is unchanged")
+	// InstallSkill starts the worker asynchronously; it may already have finished
+	// by the time we read the row. Either state proves the failed row was retried.
+	require.Contains(t, []string{types.SkillStatusInstalling, types.SkillStatusReady}, skill.Status,
+		"a failed skill must be retried even when the archive digest is unchanged")
+	require.Empty(t, skill.Error, "retry must clear the previous failure")
 }
 
 // Most failed installs fail for a reason the archive cannot fix, so the retry
