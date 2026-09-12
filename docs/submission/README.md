@@ -40,7 +40,7 @@
 
 已有原始证据随主仓保存在 `docs/acceptance/`。2026-09-12 的 [App 格式、vet、测试及构建](https://github.com/95shisihan/WeKnora/actions/runs/34676177440)与[插件框架 CI](https://github.com/95shisihan/WeKnora/actions/runs/34677593653)通过，后者包含 Windows 原生测试及 OCI 示例构建。Docker 发布流程因未配置 Docker Hub 凭据跳过发布，不代表已发布镜像或完成 Linux 实机业务验收。当天本机 Lite 重启后前端及后端健康检查均返回 HTTP 200。
 
-独立插件通过邮件附件 `WeKnora-plugins-topic1-LiuJian-2026.zip` 交付，不发布远端仓库。源码、选定 Windows 安装包、文件清单和校验值随附件提供，见 [独立插件提交附件说明](PLUGIN-ARCHIVE-README.md)。
+独立插件不发布远端仓库，源码和 Windows 安装包已归档到主仓库的 [`plugins/submission/`](../../plugins/submission/) 目录，通过 GitHub 目录链接交付；目录结构和上传方式见 [独立插件提交附件说明](PLUGIN-ARCHIVE-README.md)。
 
 ## 贡献边界
 

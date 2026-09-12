@@ -26,7 +26,7 @@
 
 首次新增两篇文档，两篇解析、摘要完成，混合检索及纯向量检索均召回核验文本。这覆盖同步、解析、Embedding、索引和检索，不只是插件 Fetch 或任务入队。
 
-[完整报告及结构化原始记录](../acceptance/windows-independent-plugin-2026-09-11.md)。独立插件以邮件 ZIP 附件提供源码和安装包，不发布远端仓库；当前主要证据为应用 API 验收，没有完整逐项点击视频。
+[完整报告及结构化原始记录](../acceptance/windows-independent-plugin-2026-09-11.md)。独立插件源码和安装包已归档到主仓库 `plugins/submission/`，不发布远端仓库；当前主要证据为应用 API 验收，没有完整逐项点击视频。
 
 ### 3.2 禁网并记录拒绝：具有 WFP 权限的 Windows 已通过
 
@@ -69,7 +69,7 @@ Manifest 声明 `outbound: false` 后，由 Windows 原生受限进程执行隔�
 1. Linux/Docker：完成实际插件安装/同步和 AppArmor 拒绝日志验收。
 2. 第三方复现：完成未参与开发者仅凭文档实现最简插件的记录。
 3. 普通 Windows 账户审计：当前没有自动部署的高权限审计服务。
-4. 独立插件交付：邮件附件 `WeKnora-plugins-topic1-LiuJian-2026.zip` 包含源码、构建脚本、随源码已有的依赖锁定文件和 Windows 安装包。
+4. 独立插件交付：主仓库 `plugins/submission/` 包含源码、构建脚本、随源码已有的依赖锁定文件和 Windows 安装包。
 5. 版本标识：最终 Tag 为 `rhino-2026-final-1`，主分支的 `submission.yaml` 记录其完整 SHA；YAML 材料提交不移动 Tag。
 
 腾讯文档正式知识库完整导入、复杂格式和生产级持久检索插件尚有局限；它们不替代本次本地目录主验收。升级不支持破坏性配置自动迁移、运行故障自动降级及跨数据库/文件系统的断电原子恢复。

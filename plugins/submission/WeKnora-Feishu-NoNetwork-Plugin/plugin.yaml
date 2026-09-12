@@ -1,0 +1,37 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: dev.example.feishu-public-no-network
+  name: 飞书公开链接（禁网验证）
+  version: 0.1.0
+  description: 声明禁止联网，实际请求公开飞书链接以验证系统拦截；仅测试连接，不提供文档导入。
+spec:
+  enabled: true
+  extensionPoints:
+    - type: datasource
+      id: feishu_public_no_network
+      protocolVersion: v1
+      name: 飞书公开链接（禁网验证）
+      authType: none
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: grpc
+    command: [bin/weknora-feishu-public-no-network.exe]
+    address: stdio://
+    startupTimeout: 30s
+  configSchema:
+    type: object
+    required: [public_urls]
+    properties:
+      public_urls:
+        type: string
+        title: 公开飞书页面链接
+        description: 填写原来可访问的公开链接；预期测试连接失败。此插件仅验证禁网，不导入文档。
+  permissions:
+    network:
+      outbound: false
+    filesystem:
+      read: []
+      write: []

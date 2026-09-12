@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*_pb2.py
+*_pb2_grpc.py
+dist/
+build/
+*.spec
+*.log
+evidence/local-state.json
+sample-data/

@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package weknora.plugin.v1;
+
+option go_package = "example.org/weknora-proprietary-model/proto;pluginproto";
+
+service ModelProviderPlugin {
+  rpc GetInfo(ModelProviderInfoRequest) returns (ModelProviderInfoResponse);
+  rpc ValidateConfig(ModelProviderValidateRequest) returns (ModelProviderValidateResponse);
+  // Available only when GetInfo.transport is grpc_inference. JSON schemas are
+  // defined in plugin/sdk/model; these are WeKnora operations, not vendor APIs.
+  rpc Infer(ModelInferenceRequest) returns (ModelInferenceResponse);
+  rpc InferStream(ModelInferenceRequest) returns (stream ModelInferenceResponse);
+}
+
+message ModelProviderInfoRequest {}
+
+message ModelProviderConfigOption {
+  string label = 1;
+  string value = 2;
+}
+
+message ModelProviderConfigField {
+  string key = 1;
+  string label = 2;
+  string type = 3;
+  bool required = 4;
+  string default_value = 5;
+  string placeholder = 6;
+  repeated ModelProviderConfigOption options = 7;
+}
+
+message ModelProviderInfoResponse {
+  string id = 1;
+  string version = 2;
+  string protocol_version = 3;
+  string provider_name = 4;
+  string display_name = 5;
+  string description = 6;
+  map<string, string> default_urls = 7;
+  repeated string model_types = 8;
+  bool requires_auth = 9;
+  repeated ModelProviderConfigField extra_fields = 10;
+  string transport = 11;
+}
+
+message ModelProviderValidateRequest { bytes config_json = 1; }
+message ModelProviderValidateResponse {}
+
+enum ModelOperation {
+  MODEL_OPERATION_UNSPECIFIED = 0;
+  MODEL_OPERATION_CHAT = 1;
+  MODEL_OPERATION_EMBED = 2;
+  MODEL_OPERATION_RERANK = 3;
+  MODEL_OPERATION_VISION = 4;
+  MODEL_OPERATION_TRANSCRIBE = 5;
+}
+
+message ModelInferenceRequest {
+  ModelOperation operation = 1;
+  bytes config_json = 2;
+  bytes input_json = 3;
+}
+
+message ModelInferenceResponse { bytes output_json = 1; }

@@ -1,0 +1,38 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: dev.example.independent-directory
+  name: 独立仓库本地目录插件
+  version: 0.1.0
+  description: 从独立 Git 仓库构建的 Windows Python 数据源插件。
+spec:
+  enabled: false
+  extensionPoints:
+    - type: datasource
+      id: independent_directory
+      name: 独立仓库本地目录
+      protocolVersion: v1
+      authType: none
+      capabilities: [incremental, deletion_sync]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: grpc
+    command: [bin/weknora-independent-directory.exe]
+    address: stdio://
+    startupTimeout: 60s
+  configSchema:
+    type: object
+    required: [root]
+    properties:
+      root:
+        type: string
+        title: 本地目录绝对路径
+        description: 仅读取该目录中的验收文本文件。
+  permissions:
+    network:
+      outbound: false
+    filesystem:
+      read: ["config:settings.root"]
+      write: []

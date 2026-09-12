@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package weknora.plugin.v1;
+
+service DatasourcePlugin {
+  rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
+  rpc Validate(ConfigRequest) returns (Empty);
+  rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  rpc ResolveResourceAncestors(ResolveResourceAncestorsRequest)
+      returns (ResolveResourceAncestorsResponse);
+  rpc Fetch(FetchRequest) returns (stream FetchEvent);
+}
+
+message Empty {}
+message GetInfoRequest {}
+message GetInfoResponse {
+  string id = 1;
+  string version = 2;
+  string protocol_version = 3;
+  string connector_type = 4;
+}
+message ConfigRequest { bytes config_json = 1; }
+message ListResourcesRequest { bytes config_json = 1; string parent_id = 2; }
+message Resource {
+  string external_id = 1;
+  string name = 2;
+  string type = 3;
+  string description = 4;
+  string url = 5;
+  int64 modified_at_unix_milli = 6;
+  string parent_id = 7;
+  bool has_children = 8;
+  bytes metadata_json = 9;
+}
+message ListResourcesResponse { repeated Resource resources = 1; }
+message ResolveResourceAncestorsRequest {
+  bytes config_json = 1;
+  repeated string resource_ids = 2;
+}
+message Ancestors { string resource_id = 1; repeated string external_ids = 2; }
+message ResolveResourceAncestorsResponse { repeated Ancestors ancestors = 1; }
+message FetchRequest {
+  bytes config_json = 1;
+  repeated string resource_ids = 2;
+  bytes cursor_json = 3;
+  bool full = 4;
+}
+message FetchedItem {
+  string external_id = 1;
+  string title = 2;
+  bytes content = 3;
+  string content_type = 4;
+  string file_name = 5;
+  string url = 6;
+  int64 updated_at_unix_milli = 7;
+  map<string, string> metadata = 8;
+  bool is_deleted = 9;
+  string source_resource_id = 10;
+  bool replaces_subtree = 11;
+  repeated string subtree_keep = 12;
+}
+message FetchEvent {
+  oneof payload {
+    FetchedItem item = 1;
+    bytes checkpoint_cursor_json = 2;
+    bytes final_cursor_json = 3;
+  }
+}

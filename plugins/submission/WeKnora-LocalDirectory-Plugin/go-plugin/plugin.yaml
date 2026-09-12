@@ -1,0 +1,48 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: io.weknora.local-directory
+  name: Local Directory
+  version: 0.2.0
+  description: Synchronize a read-only directory without outbound network access.
+spec:
+  enabled: true
+  extensionPoints:
+    - type: datasource
+      id: local_directory
+      protocolVersion: v1
+      name: Local Directory
+      description: Synchronize files from a directory mounted read-only into the plugin sandbox.
+      priority: 20
+      authType: none
+      capabilities: [incremental, deletion_sync, hierarchical]
+  compatibility:
+    weknora: ">=0.7.0 <0.8.0"
+    pluginAPI: v1
+  runtime:
+    type: oci
+    image: weknora/plugin-local-directory:0.2.0
+    startupTimeout: 15s
+    mounts:
+      - source: sample-data
+        target: /data
+        readOnly: true
+    resources:
+      memoryBytes: 134217728
+      cpuLimit: 0.5
+      pidsLimit: 64
+  configSchema:
+    type: object
+    required: [root]
+    properties:
+      root:
+        type: string
+        title: Directory
+        description: Path inside the plugin sandbox.
+        default: /data
+  permissions:
+    network:
+      outbound: false
+    filesystem:
+      read: [sample-data]
+      write: []

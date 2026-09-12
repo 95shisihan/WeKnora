@@ -1,0 +1,96 @@
+{
+  "host_path": "E:\\Tengxun_RAG\\WeKnora",
+  "host_commit_before": "0df9746286b10d4d08f5ffa1a4ddfb21d506d5c6",
+  "host_status_before": "",
+  "host_binary_before": "4b86963a79f7e6ecdb7c86ca0a02d3c20f00519125e08b6952503e9a8717fde4",
+  "source_repository": "E:/Tengxun_RAG/WeKnora-LocalDirectory-Plugin",
+  "bundle_sha256": "5f05f97b1019a9fc446480c268c154b370530625ce961ad6ffdcf793a5f15ab8",
+  "started_at": "2026-09-11T13:57:22+0800",
+  "installed": {
+    "network": {
+      "outbound": false
+    },
+    "http_approved": true,
+    "plugin_id": "dev.example.independent-directory",
+    "name": "独立仓库本地目录插件",
+    "version": "0.1.0",
+    "extension_types": [
+      "datasource"
+    ],
+    "state": "disabled",
+    "checked_at": "2026-09-11T05:57:23.1847226Z"
+  },
+  "enabled": {
+    "network": {
+      "outbound": false
+    },
+    "http_approved": true,
+    "plugin_id": "dev.example.independent-directory",
+    "name": "独立仓库本地目录插件",
+    "version": "0.1.0",
+    "extension_types": [
+      "datasource"
+    ],
+    "state": "healthy",
+    "checked_at": "2026-09-11T05:57:23.7188057Z"
+  },
+  "connector": {
+    "type": "independent_directory",
+    "name": "独立仓库本地目录",
+    "description": "从独立 Git 仓库构建的 Windows Python 数据源插件。",
+    "priority": 0,
+    "auth_type": "none",
+    "capabilities": [
+      "incremental",
+      "deletion_sync"
+    ],
+    "source": "external",
+    "plugin_id": "dev.example.independent-directory",
+    "config_schema": {
+      "properties": {
+        "root": {
+          "description": "仅读取该目录中的验收文本文件。",
+          "title": "本地目录绝对路径",
+          "type": "string"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "type": "object"
+    }
+  },
+  "knowledge_base_id": "db2d33a8-2dfb-41d6-957b-1ae481407443",
+  "data_source_id": "f72ebbd2-10e4-425d-913a-eea0f94d27c6",
+  "resources": [
+    {
+      "external_id": "alpha.txt",
+      "name": "alpha.txt",
+      "type": "file",
+      "description": "",
+      "url": "",
+      "modified_at": "2026-09-11T05:58:55.971Z"
+    },
+    {
+      "external_id": "beta.txt",
+      "name": "beta.txt",
+      "type": "file",
+      "description": "",
+      "url": "",
+      "modified_at": "2026-09-11T05:58:55.972Z"
+    }
+  ],
+  "prepared": true,
+  "passed_phases": [
+    "initial",
+    "unchanged",
+    "changed"
+  ],
+  "host_commit_after": "0df9746286b10d4d08f5ffa1a4ddfb21d506d5c6",
+  "host_status_after": "",
+  "host_binary_unchanged": true,
+  "installed_executable_sha256": "f30a73550ea39c85a8f145dcb92a005e0d8322bb4cf6fd971d60775f3e4c41f3",
+  "installed_executable_matches_bundle": true,
+  "acceptance_passed": true,
+  "finished_at": "2026-09-11T14:01:52+0800"
+}
