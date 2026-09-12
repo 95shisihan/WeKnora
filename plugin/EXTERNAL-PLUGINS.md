@@ -4,7 +4,7 @@
 
 ## 独立仓库
 
-目前为本地独立 Git 仓库，尚未配置或发布新的远端地址。正式提交前需将评审可访问的链接加入提交邮件。
+目前为本地独立 Git 仓库，不发布新的远端地址。正式提交时将构建源码和 Windows ZIP 作为邮件附件提供。
 
 | 仓库名 | 内容 | 构建入口 |
 | --- | --- | --- |
@@ -46,3 +46,4 @@ Windows 隔离测试还需 `WEKNORA_WINDOWS_SANDBOX_TEST=1`。在线联调需相
 迁移前的原始验收记录保留其当时路径与提交 SHA，以便追溯，不应直接当作当前构建命令。最新状态见 [验收矩阵](ACCEPTANCE.md)。
 
 2026-09-11 拆分验证：四个 Go 插件独立测试和 ZIP 构建通过；飞书 28 项测试通过；宿主协议、人工模型推理及 SQLite 增量通过。新制品的 `TestNativeDirectoryStdioIncremental`、`TestWindowsNativeManagerDirectoryRoundTrip`、`TestWindowsNativeControlledHTTP`、`TestTencentDocsNativeApproval` 均在 Windows 受限进程中通过；本轮未执行在线文档导入或 Linux OCI 验收。
+
