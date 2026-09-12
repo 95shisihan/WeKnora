@@ -35,4 +35,4 @@
 ## 交付物
 
 `artifacts/plugins/feishu-public-windows-x64-0.2.0.zip` 及同名 `.sha256` 是可上传的编译插件包。
-开发接入指南见 [受控 HTTP](CONTROLLED-HTTP.md) 和 [Python 飞书模板](templates/feishu-wiki-python/PUBLIC_LINKS.md)。
+开发接入指南见 [受控 HTTP](CONTROLLED-HTTP.md) 和 [独立飞书插件](EXTERNAL-PLUGINS.md)。

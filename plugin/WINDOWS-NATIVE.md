@@ -22,7 +22,7 @@ spec:
       write: []
 ```
 
-完整示例是 [`examples/plugins/local-directory/plugin.windows.yaml`](../examples/plugins/local-directory/plugin.windows.yaml)。将它作为安装包的 `plugin.yaml`，并附带重新编译的插件程序。旧版只支持 TCP 的二进制必须先更新通信入口。
+完整示例是 [独立目录插件仓库](EXTERNAL-PLUGINS.md)中的 `go-plugin/plugin.windows.yaml`。将它作为安装包的 `plugin.yaml`，并附带重新编译的插件程序。旧版只支持 TCP 的二进制必须先更新通信入口。
 
 Go 插件只需要使用 SDK 创建 listener：
 
@@ -78,7 +78,7 @@ SDK 提供 Go stdio listener 和 Python `plugin/sdk/python/stdio_grpc.py` 的 `S
 
 ```powershell
 $env:CGO_ENABLED = '0'
-go build -o bin/weknora-plugin-local-directory.exe ./examples/plugins/local-directory
+# 先在独立目录插件的 go-plugin/ 运行 build.ps1，宿主测试只接收编译后的 EXE
 powershell -File plugin/test-native-windows.ps1
 ```
 
@@ -87,6 +87,8 @@ powershell -File plugin/test-native-windows.ps1
 - 原生插件和子进程的 IPv4/IPv6 TCP 访问被系统拒绝；
 - 可达的本机 TCP/UDP 端点对普通进程正常，对受限插件不传输数据；
 - 管道中二进制数据保持完整，gRPC 健康检查和取消正常；
+以下目录联调由宿主 `internal/plugin` 的测试单独执行，需设置 `WEKNORA_NATIVE_DIRECTORY_EXE`：
+
 - 本地目录插件正常读取配置目录，全量同步两个文件；
 - 仅修改一个文件后，只返回该文件，再次同步没有变化；
 - 如果 WFP 订阅成功，必须收到真实拒绝记录。
@@ -101,8 +103,8 @@ powershell -File plugin/test-native-windows.ps1 -RequireAudit
 
 ```powershell
 $env:WEKNORA_WINDOWS_SANDBOX_TEST = '1'
-$env:WEKNORA_NATIVE_DIRECTORY_EXE = (Resolve-Path bin/weknora-plugin-local-directory.exe).Path
-go test -count=1 -v ./internal/plugin -run '^TestWindowsNativeManagerDirectoryRoundTrip$'
+$env:WEKNORA_NATIVE_DIRECTORY_EXE = (Resolve-Path '<独立插件构建目录>/bin/weknora-plugin-local-directory.exe').Path
+go test -count=1 -v ./internal/plugin -run '^Test(WindowsNativeManagerDirectoryRoundTrip|NativeDirectoryStdioIncremental)$'
 ```
 
 该测试从独立临时目录装载插件，经过宿主权限校验和 SDK 拨号，验证全量、增量、无变化同步及禁用后重新启用。

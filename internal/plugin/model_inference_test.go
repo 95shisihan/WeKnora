@@ -17,13 +17,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tencent/WeKnora/examples/plugins/proprietary-model/adapter"
 	"github.com/Tencent/WeKnora/internal/models/asr"
 	"github.com/Tencent/WeKnora/internal/models/chat"
 	"github.com/Tencent/WeKnora/internal/models/embedding"
 	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/models/rerank"
 	"github.com/Tencent/WeKnora/internal/models/vlm"
+	adapter "github.com/Tencent/WeKnora/internal/plugin/internal/modeltest"
 	"github.com/Tencent/WeKnora/internal/types"
 	pb "github.com/Tencent/WeKnora/plugin/proto"
 	"github.com/Tencent/WeKnora/plugin/sdk/model"
@@ -149,7 +149,7 @@ func startInferenceManager(t *testing.T, native bool) (*Manager, *Manifest) {
 		dir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "bin"), 0700))
 		require.NoError(t, copyExecutable(source, filepath.Join(dir, "bin", "proprietary-model.exe")))
-		raw, err := os.ReadFile("../../examples/plugins/proprietary-model/plugin.yaml")
+		raw, err := os.ReadFile("testdata/model-probe/plugin.yaml")
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.yaml"), raw, 0600))
 		manifest, err = LoadManifest(filepath.Join(dir, "plugin.yaml"), "0.7.2")

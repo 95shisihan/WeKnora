@@ -1,3 +1,5 @@
+> 2026 犀牛鸟课题一成果：[提交说明、成果报告与运行测试指南](docs/submission/README.md)。
+
 <p align="center">
   <picture>
     <img src="./docs/images/logo.png" alt="WeKnora Logo" height="120"/>

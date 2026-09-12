@@ -85,12 +85,12 @@ func TestStandalonePythonTemplateIsSelfContained(t *testing.T) {
 	require.Equal(t, "dev.example.local-directory", discovered[0].Metadata.ID)
 }
 
-func TestDefaultLocalDirectoryExampleUsesStrictRuntime(t *testing.T) {
+func TestDefaultDatasourceTemplateUsesStrictRuntime(t *testing.T) {
 	_, source, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(source), "..", ".."))
 	manifest, err := LoadManifest(
-		filepath.Join(repoRoot, "examples", "plugins", "local-directory", "plugin.yaml"),
+		filepath.Join(repoRoot, "plugin", "templates", "datasource-python", "plugin.yaml"),
 		"0.7.2",
 	)
 	require.NoError(t, err)

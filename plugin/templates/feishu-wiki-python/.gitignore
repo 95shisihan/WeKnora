@@ -1,8 +1,0 @@
-.venv/
-__pycache__/
-*_pb2.py
-*_pb2_grpc.py
-dist/
-*.zip
-.env
-config.local.json

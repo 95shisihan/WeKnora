@@ -22,10 +22,9 @@ def main():
     if dest.exists():
         parser.error("destination already exists; refusing to overwrite")
     mapping = {
-        "examples/plugins/proprietary-model/main.go": "main.go",
-        "examples/plugins/proprietary-model/adapter/backend.go": "adapter/backend.go",
-        "examples/plugins/proprietary-model/plugin.yaml": "plugin.yaml",
-        "examples/plugins/proprietary-model/README.md": "README.md",
+        "plugin/templates/model-provider-go/main.go": "main.go",
+        "plugin/templates/model-provider-go/plugin.yaml": "plugin.yaml",
+        "plugin/templates/model-provider-go/README.md": "README.md",
         "plugin/MODEL-INFERENCE.md": "MODEL-INFERENCE.md",
         "plugin/proto/model_provider.proto": "proto/model_provider.proto",
         "plugin/proto/model_provider.pb.go": "proto/model_provider.pb.go",
@@ -37,7 +36,6 @@ def main():
         "LICENSE": "LICENSE",
     }
     replacements = {
-        "github.com/Tencent/WeKnora/examples/plugins/proprietary-model/adapter": f"{args.module}/adapter",
         "github.com/Tencent/WeKnora/plugin/proto": f"{args.module}/proto",
         "github.com/Tencent/WeKnora/plugin/sdk": f"{args.module}/sdk",
     }
@@ -64,8 +62,8 @@ def main():
     shutil.copyfile(root / "go.sum", dest / "go.sum")
     (dest / ".gitignore").write_text("bin/\n*.zip\n", encoding="utf-8")
     print(f"Created standalone plugin: {dest}")
-    print("Build from that directory: go build -mod=mod -o bin/proprietary-model.exe .")
-    print("Edit metadata IDs in main.go and plugin.yaml; implement your vendor in adapter/backend.go.")
+    print("Build from that directory: go build -mod=mod -o bin/model-plugin.exe .")
+    print("Edit metadata IDs in main.go and plugin.yaml; implement your SDK Backend in the new repository.")
 
 
 if __name__ == "__main__":

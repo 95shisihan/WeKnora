@@ -11,9 +11,9 @@ try {
     $env:CGO_ENABLED = '0'
     $env:WEKNORA_WINDOWS_SANDBOX_TEST = '1'
     $env:WEKNORA_REQUIRE_WFP_AUDIT = if ($RequireAudit) { '1' } else { '0' }
-    & $go test -count=1 -v -timeout=90s ./internal/plugin/windowsandbox ./examples/plugins/local-directory ./plugin/sdk/transport
+    & $go test -count=1 -v -timeout=90s ./internal/plugin/windowsandbox ./plugin/sdk/transport
     if ($LASTEXITCODE -ne 0) { throw 'Native Windows plugin acceptance failed.' }
-    Write-Host 'Native Windows isolation, pipe transport, and incremental sync passed.'
+    Write-Host 'Native Windows isolation and pipe transport passed. External directory sync runs separately with WEKNORA_NATIVE_DIRECTORY_EXE.'
 }
 finally {
     Pop-Location

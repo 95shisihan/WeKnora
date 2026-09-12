@@ -3,6 +3,8 @@
 This file lists executable evidence rather than treating source presence as a
 passing acceptance test.
 
+Source organization update: concrete plugins now live in independent repositories; see [repository boundaries and artifact tests](EXTERNAL-PLUGINS.md). Historical records below retain their original versions and test names. Directory algorithm tests and Feishu unit tests run in their own repositories; host native tests consume external artifacts. The model scaffold is now a minimal UNIMPLEMENTED template, while framework inference tests use an explicitly artificial test fixture. Moving sources is not a new Linux/third-party acceptance result.
+
 2026-09-11 proprietary model inference: `TestNativeModelInferenceFactories`
 loads a compiled Windows EXE through Manager/stdio gRPC and reaches a custom
 HMAC-authenticated HTTP/NDJSON reference service through all five model factories.
@@ -70,7 +72,7 @@ audit configuration returns Access Denied. Policy-applied logs explicitly carry
 | Blocked attempt is recorded | Windows native WFP events and `TestWindowsNativeRuntimeDenialAudit` production JSON sink assertions; Linux `plugin/security-probe/verify-linux.sh` checks kernel audit | passed on Windows with administrator WFP access 2026-09-11; ordinary-user audit remains unavailable; AppArmor-enabled Linux run still required |
 | One changed file only | `TestIncrementalFetchEmitsOnlyChangedFile`, gRPC round trip, and host `TestPluginIncrementalSyncOnlyReprocessesChangedFile` | passed on Windows: two persisted rows remain, only the changed row gets a new ID/hash, and file-save/parser-task counts rise by one |
 | Independent implementation from docs | self-contained Python template and README | template present; third-party reproduction pending |
-| Feishu Wiki external tutorial | `templates/feishu-wiki-python` contains its own Proto, API client, gRPC service, Dockerfile, Chinese tutorial and read-only live smoke script | 16 tests passed on Windows from a copied directory outside the checkout (2026-09-09); real Feishu credentials, OCI execution and host parser/index E2E remain pending |
+| Feishu Wiki external tutorial | independent `WeKnora-Feishu-Plugin` (formerly `templates/feishu-wiki-python`) contains its own Proto, API client, gRPC service, Dockerfile, Chinese tutorial and read-only live smoke script | 16 tests passed on Windows from a copied directory outside the checkout (2026-09-09); real Feishu credentials, OCI execution and host parser/index E2E remain pending |
 | Runtime lifecycle | SystemAdmin list/enable/disable API, periodic Health, and Manager load/disable/enable tests including datasource and retrieval | implemented for all five external extension types and in-process built-ins |
 | Built-in/external lifecycle parity | `BuiltinRegistration` publishes and withdraws datasource, web search, document parser, model provider, and retrieval engine implementations through the same Manager state machine and admin API | implemented; tenant-config-dependent built-ins have no context-free periodic probe and report configuration health on use |
 | Web search without core factory edits | typed protocol, external registry metadata, Manager lifecycle, and `mock-web-search` example | implemented; OCI E2E requires Docker CI |

@@ -86,7 +86,7 @@ content := response.Body
 
 导入公开路径 `github.com/Tencent/WeKnora/plugin/sdk/hosthttp` 与 `plugin/sdk/transport`。不要导入 `internal/plugin/httpbroker`。SDK 不重试请求；尤其 POST 等写请求不能自动重放。调用方必须传入业务 RPC 的 context，使取消可传播。GetInfo、Health 应保持本地操作，不能等待 HTTP 通道；宿主先检查身份和健康，再打开通道。
 
-可编译示例：`examples/plugins/controlled-http`。它只演示测试连接，不提供文档同步，业务开发者保留自己的解析、资源列表和 Fetch 实现。此前的禁网验证插件没有申请 `http`，因此仍应失败。
+可编译示例：[独立受控 HTTP 插件](EXTERNAL-PLUGINS.md)。它只演示测试连接，不提供文档同步，业务开发者保留自己的解析、资源列表和 Fetch 实现。此前的禁网验证插件没有申请 `http`，因此仍应失败。
 
 ## Python SDK
 
@@ -140,7 +140,7 @@ Windows 包仍交付编译 EXE、运行库与声明文件，无需安装 Python 
 
 ```powershell
 ./plugin/test-windows.ps1
-./examples/plugins/controlled-http/build.ps1
+# 在 WeKnora-ControlledHTTP-Plugin 独立仓库执行 ./build.ps1
 ```
 
 单独运行网络策略和 Go SDK 通道测试：

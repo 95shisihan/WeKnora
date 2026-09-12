@@ -1,0 +1,25 @@
+apiVersion: plugins.weknora.io/v1alpha1
+kind: Plugin
+metadata:
+  id: dev.example.model-plugin
+  name: Minimal model plugin
+  version: 0.1.0
+spec:
+  extensionPoints:
+    - type: model_provider
+      id: example_model
+      protocolVersion: v1
+  compatibility:
+    weknora: ">=0.7.2-dev <1.0.0"
+    pluginAPI: v1
+  runtime:
+    type: grpc
+    address: stdio://
+    command: [bin/model-plugin.exe]
+    startupTimeout: 15s
+  permissions:
+    network:
+      outbound: true
+    filesystem:
+      read: []
+      write: []

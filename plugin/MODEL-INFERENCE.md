@@ -48,7 +48,7 @@ thinking 的 done 只结束思考段。整个流必须以一次 answer/error 的
 
 ## SDK 与开发步骤
 
-嵌入 `model.UnimplementedBackend`，按需要实现 `ValidateConfig`、`Infer`、`InferStream`，然后用 `model.Server{Info: ..., Backend: ...}` 注册 ModelProviderPlugin。注册 gRPC Health 服务并通过 `transport.Listen` 支持 stdio。完整可编译入口和自定义协议实现位于 `examples/plugins/proprietary-model`。
+嵌入 `model.UnimplementedBackend`，按需要实现 `ValidateConfig`、`Infer`、`InferStream`，然后用 `model.Server{Info: ..., Backend: ...}` 注册 ModelProviderPlugin。注册 gRPC Health 服务并通过 `transport.Listen` 支持 stdio。最小入口位于 `plugin/templates/model-provider-go`；具体自定义协议实现位于[独立专有模型仓库](EXTERNAL-PLUGINS.md)。
 
 生成主仓外独立模板：
 
@@ -56,7 +56,7 @@ thinking 的 done 只结束思考段。整个流必须以一次 answer/error 的
 python plugin/scaffold_model_plugin.py E:/plugins/my-model --module example.org/my-model
 ```
 
-目标目录必须不存在，脚手架不会覆盖已有代码。生成内容包含 Proto、生成代码、模型 SDK、管道 SDK和参考适配器；无需修改主仓的模型工厂文件。
+目标目录必须不存在，脚手架不会覆盖已有代码。生成内容包含 Proto、生成代码、模型 SDK、管道 SDK 和返回 UNIMPLEMENTED 的最小入口（需自行实现 Backend）；无需修改主仓的模型工厂文件。
 
 ## 大小、错误与生命周期
 

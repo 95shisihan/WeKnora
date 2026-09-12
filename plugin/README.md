@@ -9,6 +9,8 @@
 由管理员批准域名和方法，由框架检查实际 IP、跳转和限额。Go/Python SDK、
 权限字段、编译制品交付及兼容性限制均在该指南中说明。
 
+具体插件源码已迁入独立仓库，仓库清单、构建入口及制品联调方式见[外部插件目录](EXTERNAL-PLUGINS.md)。
+
 本目录定义 WeKnora 与主仓外插件之间的稳定边界。当前已接通的扩展点是
 `datasource/v1`、`web_search/v1`、`document_parser/v1`、受限的
 `model_provider/v1` 和 `retrieval_engine/v1`；插件可以使用任意支持 gRPC 的语言实现，不能导入
@@ -73,8 +75,7 @@ my-plugin.zip
 
 ## Manifest
 
-参考 [本地目录示例](../examples/plugins/local-directory/plugin.yaml)。默认清单使用
-严格 OCI 模式；同目录的 `plugin.dev.yaml` 仅供本地进程调试。关键字段：
+参考[最小数据源模板](templates/datasource-python/plugin.yaml)。具体目录插件的 OCI、Windows 和开发清单由其独立仓库维护。关键字段：
 
 - `metadata.id`：全局稳定 ID，建议使用反向域名；
 - `metadata.version`：SemVer；
@@ -149,31 +150,11 @@ sh plugin/security-probe/verify-linux.sh
 返回内容，不应直接连接 WeKnora 数据库、解析器或向量库。宿主继续负责文档
 解析、分块、Embedding、索引、删除和同步日志。
 
-## 构建并运行示例
+## 构建并安装外部插件
 
-默认的生产隔离模式在仓库根目录执行：
+在[独立插件仓库](EXTERNAL-PLUGINS.md)中构建 ZIP，再通过“设置 → 插件管理”上传和启用。构建和测试命令位于各仓库 README。主仓无须重新编译。
 
-```bash
-docker build -f examples/plugins/local-directory/Dockerfile \
-  -t weknora/plugin-local-directory:0.2.0 .
-```
-
-示例把 `sample-data` 以只读方式挂到 `/data`，数据源配置中的 `root` 应填写
-`/data`。随后将 `examples/plugins` 加入 `WEKNORA_PLUGIN_DIRS` 并启动 WeKnora。
-
-不具备 Docker/AppArmor 的开发机可显式切换到进程调试清单：
-
-```powershell
-New-Item -ItemType Directory -Force examples/plugins/local-directory/bin
-.tools/go/bin/go.exe build -o examples/plugins/local-directory/bin/weknora-plugin-local-directory ./examples/plugins/local-directory
-Copy-Item examples/plugins/local-directory/plugin.dev.yaml examples/plugins/local-directory/plugin.yaml
-$env:WEKNORA_PLUGIN_DIRS = "$PWD/examples/plugins"
-```
-
-Linux/macOS 使用系统 `mkdir -p` 和 `go build` 即可。随后正常启动 WeKnora，
-“Local Directory” 会出现在数据源选择器中。实际外部插件仓库可以把 `source`
-改为宿主上的绝对目录；只有清单声明
-的 source 会进入容器，插件看不到 WeKnora 数据库、文件存储或 Docker socket。
+本地目录 Go 版本位于独立目录插件仓库的 `go-plugin/`，执行 `./build.ps1` 生成 Windows ZIP；Linux 镜像在该目录执行 `docker build -t weknora/plugin-local-directory:0.2.0 .`。选择匹配平台的 Manifest，配置只读数据目录后再安装。
 
 ## 增量同步约束
 
@@ -187,7 +168,8 @@ Linux/macOS 使用系统 `mkdir -p` 和 `go build` 即可。随后正常启动 W
 运行验证：
 
 ```powershell
-.tools/go/bin/go.exe test ./examples/plugins/local-directory -count=1
+# 在独立目录插件仓库的 go-plugin/ 中执行
+go test -mod=mod . -count=1
 ```
 
 测试覆盖“两文件中只修改一个，只发出一个更新”以及删除事件。宿主侧的
@@ -208,7 +190,7 @@ Windows 可直接运行完整验收脚本。脚本使用 PATH 中的 Go/GCC，�
 powershell -ExecutionPolicy Bypass -File plugin/test-windows.ps1
 ```
 
-该脚本依次执行统一 Manager/协议/五个示例插件测试、真实 gRPC 到 SQLite 的增量同步
+该脚本依次执行统一 Manager/协议/主仓保留的协议示例插件测试、真实 gRPC 到 SQLite 的增量同步
 测试，以及（已安装前端依赖时）Vue TypeScript 类型检查。
 
 Linux CI 的 `.github/workflows/plugin.yml` 还会从 Python 模板目录本身作为完整
@@ -308,10 +290,10 @@ docker build -f examples/plugins/memory-retrieval/Dockerfile \
 
 ## 可独立仓库模板
 
-没有飞书自建应用时，可使用[飞书公开链接导入](templates/feishu-wiki-python/PUBLIC_LINKS.md)，
+没有飞书自建应用时，可使用[独立飞书插件](EXTERNAL-PLUGINS.md)，
 匿名导入指定公开页面的文字正文；它不自动遍历知识库，也不支持需登录或分页未完整加载的页面。
 
-真实软件接入教程见 [`templates/feishu-wiki-python`](templates/feishu-wiki-python/README.md)：
+真实软件接入教程见 [独立飞书插件仓库](EXTERNAL-PLUGINS.md)：
 它用飞书企业自建应用读取知识库 docx 正文，包含授权配置、独立构建、安装、
 资源子树选择、哈希增量、删除语义、真实 gRPC 测试和只读真实 API 联调脚本。
 可复制整个目录开发其他软件的数据源插件，无需依赖内置飞书连接器。
@@ -357,6 +339,6 @@ POST /api/v1/system/admin/plugins/:plugin_id/disable
 
 Windows 开发机运行 `powershell -ExecutionPolicy Bypass -File plugin/test-windows.ps1`。
 脚本会覆盖 manifest/Manager 协议测试、从临时外部目录启动真实子进程 gRPC 插件、
-五个示例、两轮 SQLite 增量同步和前端类型检查。AppArmor syscall 拒绝与内核审计
+主仓保留的协议示例、两轮 SQLite 增量同步和前端类型检查。AppArmor syscall 拒绝与内核审计
 只能在 Linux 验收节点执行；Windows 测试验证 OCI 策略生成和缺少隔离能力时的
 fail-closed 行为，不把平台能力缺失伪装成通过。

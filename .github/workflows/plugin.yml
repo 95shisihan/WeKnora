@@ -90,25 +90,16 @@ jobs:
           python -m unittest discover -s plugin -p test_scaffold_model_plugin.py -v
           target="$(mktemp -d)/model-plugin"
           python plugin/scaffold_model_plugin.py "$target" --module example.org/standalone-model
-          (cd "$target" && CGO_ENABLED=0 go build -mod=mod -o bin/proprietary-model.exe .)
-          WEKNORA_PROPRIETARY_MODEL_EXE="$target/bin/proprietary-model.exe" \
+          (cd "$target" && CGO_ENABLED=0 go build -mod=mod -o bin/model-plugin.exe .)
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/model-probe" ./internal/plugin/testdata/model-probe
+          WEKNORA_PROPRIETARY_MODEL_EXE="$RUNNER_TEMP/model-probe" \
             go test -count=1 ./internal/plugin -run '^TestNativeModelInferenceFactories$'
 
       - name: Test Python binary stdio interoperability
         run: WEKNORA_PYTHON="$(command -v python)" go test -count=1 ./plugin/sdk/transport -run TestPythonStdioGRPC
 
-      - name: Test standalone Feishu plugin outside the checkout
-        run: |
-          cp -R plugin/templates/feishu-wiki-python "$RUNNER_TEMP/feishu-plugin"
-          cd "$RUNNER_TEMP/feishu-plugin"
-          python -m pip install -r requirements.txt
-          python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. datasource.proto
-          python -m unittest -v
-          docker build -t example/weknora-feishu-wiki:0.1.0 .
-
       - name: Build OCI examples
         run: |
-          docker build -f examples/plugins/local-directory/Dockerfile -t weknora/plugin-local-directory:ci .
           docker build -f examples/plugins/mock-web-search/Dockerfile -t weknora/plugin-mock-web-search:ci .
           docker build -f examples/plugins/plain-text-parser/Dockerfile -t weknora/plugin-plain-text-parser:ci .
           docker build -f examples/plugins/mock-model-provider/Dockerfile -t weknora/plugin-mock-model-provider:ci .
@@ -124,7 +115,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Test real native process isolation and directory sync
+      - name: Test real native process isolation and pipe transport
         shell: pwsh
         run: ./plugin/test-native-windows.ps1
 

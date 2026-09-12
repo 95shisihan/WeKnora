@@ -21,7 +21,7 @@ func TestWindowsNativeControlledHTTP(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "bin"), 0700))
 	require.NoError(t, copyExecutable(exe, filepath.Join(dir, "bin", "weknora-controlled-http.exe")))
-	raw, err := os.ReadFile("../../examples/plugins/controlled-http/plugin.yaml")
+	raw, err := os.ReadFile("testdata/controlled-http.yaml")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.yaml"), raw, 0600))
 	manager := NewManager("0.7.2", nil)
